@@ -15,9 +15,17 @@ export function newToday(p: Progress) {
   return p.days[dayKey()]?.n ?? 0;
 }
 
-/** Next unseen words along the learning path, starting at the learner's level. */
+/** Words from the learner's own list that are still unseen, in the order they were added. */
+export function queuedNew(atlas: Atlas, p: Progress) {
+  return p.queue.filter((id) => atlas.byId.has(id) && !p.cards[id]);
+}
+
+/**
+ * Next unseen words: the learner's own picks first, then the learning path
+ * from their starting level fills the rest of today's allowance.
+ */
 export function nextNew(atlas: Atlas, p: Progress, settings: Settings, count: number) {
-  const out: string[] = [];
+  const out: string[] = queuedNew(atlas, p).slice(0, count);
   const pass = (from: number) => {
     for (const w of atlas.words) {
       if (out.length >= count) return;
@@ -34,7 +42,8 @@ export function todayPlan(atlas: Atlas, p: Progress, s: Settings) {
   const due = dueIds(p).filter((id) => atlas.byId.has(id));
   const newLeft = Math.max(0, s.dailyNew - newToday(p));
   const fresh = nextNew(atlas, p, s, newLeft);
-  return { due, fresh, minutes: Math.max(1, Math.round(due.length * 0.25 + fresh.length * 0.9)) };
+  const picked = fresh.filter((id) => p.queue.includes(id)).length;
+  return { due, fresh, picked, minutes: Math.max(1, Math.round(due.length * 0.25 + fresh.length * 0.9)) };
 }
 
 function quizKind(ref: WordRef, p: Progress, s: Settings, salt: number): QuizKind {
@@ -129,6 +138,7 @@ export function answer(atlas: Atlas, step: Step & { kind: QuizKind }, correct: b
         cards: { ...next.cards, [step.id]: review(p.cards[step.id], grade, Date.now(), settings.retention) },
         session: { ...next.session!, graded: { ...sess.graded, [step.id]: grade } },
         mistakes: correct ? next.mistakes : [step.id, ...next.mistakes.filter((x) => x !== step.id)].slice(0, 300),
+        queue: next.queue.filter((x) => x !== step.id),
       };
       next = bumpDay(next, { r: 1, c: correct ? 1 : 0, n: sess.newIds.includes(step.id) ? 1 : 0 });
     }

@@ -1,12 +1,12 @@
-import { ArrowRight, Flame, Keyboard, Sparkles } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { ArrowRight, Flame, Keyboard, ListPlus, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { prefetch, useAtlas, useEntry } from "../atlas/context";
 import { go, openWord } from "../lib/router";
 import { cue } from "../lib/sound";
 import { hashSeed } from "../lib/text";
-import { buildSession, masteredCount, todayPlan } from "../store/session";
+import { buildSession, masteredCount, queuedNew, todayPlan } from "../store/session";
 import { isMastered } from "../store/srs";
-import { dayKey, store, useStore } from "../store/store";
+import { dayKey, dequeue, enqueue, store, useStore } from "../store/store";
 import { Galaxy } from "../galaxy/Galaxy";
 import { Highlight, Pronounce } from "../ui/EntryView";
 import { Illustration } from "../ui/Illustration";
@@ -110,7 +110,9 @@ export function Today() {
                   </>
                 )}
               </h2>
-              <p className="journey-lede">约 {plan.minutes} 分钟。先温故，再知新。</p>
+              <p className="journey-lede">
+                约 {plan.minutes} 分钟。先温故，再知新。{plan.picked > 0 && `新词里有 ${plan.picked} 个是你指定的。`}
+              </p>
             </>
           ) : (
             <>
@@ -191,6 +193,7 @@ export function Today() {
           </dl>
         </section>
 
+        <QueuePanel />
         <LevelPath />
         <GalaxyPanel learned={learned} total={atlas.count} />
         <Topics />
@@ -339,6 +342,106 @@ function Topics() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+const SEP = /[\n\r,，;；、\t]+/;
+
+/** Split pasted text into candidate headwords; whole pieces are tried before single words so phrases still match. */
+function parseWords(text: string) {
+  const pieces = text.split(SEP).map((t) => t.trim().toLowerCase()).filter((t) => /[a-z]/.test(t));
+  return pieces.map((t) => ({ whole: t, words: t.includes(" ") ? t.split(/\s+/).filter((x) => /[a-z]/.test(x)) : [] }));
+}
+
+function QueuePanel() {
+  const atlas = useAtlas();
+  const progress = useStore((s) => s.progress);
+  const dailyNew = useStore((s) => s.settings.dailyNew);
+  const [text, setText] = useState("");
+  const [note, setNote] = useState<{ added: number; learned: string[]; missing: string[] } | null>(null);
+  const waiting = useMemo(() => queuedNew(atlas, progress), [atlas, progress]);
+  const byWord = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of atlas.words) if (!m.has(w.word.toLowerCase())) m.set(w.word.toLowerCase(), w.id);
+    return m;
+  }, [atlas]);
+
+  const add = () => {
+    const ids: string[] = [];
+    const learned: string[] = [];
+    const missing: string[] = [];
+    const take = (id: string) => (progress.cards[id] ? learned.push(atlas.byId.get(id)!.word) : ids.push(id));
+    for (const { whole, words } of parseWords(text)) {
+      const id = byWord.get(whole);
+      if (id) take(id);
+      else if (words.length) for (const w of words) byWord.has(w) ? take(byWord.get(w)!) : missing.push(w);
+      else missing.push(whole);
+    }
+    const fresh = [...new Set(ids)].filter((id) => !progress.queue.includes(id));
+    if (fresh.length) enqueue(fresh);
+    setNote({ added: fresh.length, learned: [...new Set(learned)], missing: [...new Set(missing)] });
+    if (!missing.length) setText("");
+  };
+
+  const shown = waiting.slice(0, 60);
+  return (
+    <section className="panel queue-panel">
+      <div className="panel-head">
+        <h3 className="eyebrow">我的待学清单</h3>
+        {waiting.length > 0 && <span className="queue-count">{waiting.length} 个待学</span>}
+      </div>
+      <p className="queue-lede">
+        学新词时先学这里的词，不够每天 {dailyNew} 个再由系统补上。也可以在单词页点 <ListPlus size={14} /> 加入。
+      </p>
+      <div className="queue-form">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          placeholder="粘贴英文单词，用空格、逗号或换行分隔"
+          aria-label="要加入待学清单的单词"
+          lang="en"
+          spellCheck={false}
+          autoCapitalize="none"
+        />
+        <button className="btn btn-primary" onClick={add} disabled={!text.trim()}>
+          加入清单
+        </button>
+      </div>
+      {note && (
+        <div className="queue-note" role="status">
+          <p>{note.added ? `已加入 ${note.added} 个词。` : "没有新加入的词。"}</p>
+          {note.learned.length > 0 && <p>已经学过，不再加入：{note.learned.join("、")}</p>}
+          {note.missing.length > 0 && <p className="is-warn">词库里没有：{note.missing.join("、")}</p>}
+        </div>
+      )}
+      {waiting.length > 0 && (
+        <>
+          <ul className="queue-list">
+            {shown.map((id, i) => {
+              const w = atlas.byId.get(id)!;
+              return (
+                <li key={id} className={i < dailyNew ? "is-next" : ""}>
+                  <button className="queue-word" onClick={() => openWord(id)} lang="en" title={w.zh}>
+                    {w.word}
+                  </button>
+                  <button className="queue-x" onClick={() => dequeue([id])} aria-label={`移出 ${w.word}`}>
+                    <X size={14} />
+                  </button>
+                </li>
+              );
+            })}
+            {waiting.length > shown.length && <li className="queue-more">还有 {waiting.length - shown.length} 个</li>}
+          </ul>
+          <div className="queue-foot">
+            <small>金色的词会出现在下一次的新词里。</small>
+            <button className="link" onClick={() => window.confirm("清空待学清单？已学过的进度不受影响。") && dequeue(progress.queue)}>
+              清空清单
+            </button>
+          </div>
+        </>
+      )}
     </section>
   );
 }

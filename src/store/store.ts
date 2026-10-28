@@ -44,6 +44,8 @@ export interface Progress {
   session: ActiveSession | null;
   /** Rolling list of recent mistakes, newest first. */
   mistakes: string[];
+  /** Words the learner picked to meet next; they come before the system's picks within the daily limit. */
+  queue: string[];
 }
 
 export interface Settings {
@@ -87,6 +89,7 @@ export const emptyProgress = (datasetId: string): Progress => ({
   typing: [],
   session: null,
   mistakes: [],
+  queue: [],
 });
 
 export const dayKey = (d = new Date()) =>
@@ -139,6 +142,7 @@ export function sanitizeProgress(v: unknown, datasetId: string): Progress {
   if (!isObj(v) || v.version !== 2) return out;
   if (isObj(v.cards)) for (const [k, c] of Object.entries(v.cards)) if (validCard(c)) out.cards[k] = c;
   if (Array.isArray(v.bookmarks)) out.bookmarks = v.bookmarks.filter((x): x is string => typeof x === "string").slice(0, 20000);
+  if (Array.isArray(v.queue)) out.queue = [...new Set(v.queue.filter((x): x is string => typeof x === "string"))].slice(0, 2000);
   if (Array.isArray(v.mistakes)) out.mistakes = v.mistakes.filter((x): x is string => typeof x === "string").slice(0, 300);
   if (isObj(v.days))
     for (const [k, d] of Object.entries(v.days))
@@ -281,6 +285,21 @@ export function toggleBookmark(id: string) {
     ...p,
     bookmarks: p.bookmarks.includes(id) ? p.bookmarks.filter((x) => x !== id) : [id, ...p.bookmarks],
   }));
+}
+
+/** Add words to the learner's own list, keeping order and skipping duplicates. */
+export function enqueue(ids: string[]) {
+  store.progress((p) => ({ ...p, queue: [...new Set([...p.queue, ...ids])].slice(0, 2000) }));
+}
+
+export function dequeue(ids: string[]) {
+  const drop = new Set(ids);
+  store.progress((p) => ({ ...p, queue: p.queue.filter((x) => !drop.has(x)) }));
+}
+
+export function toggleQueued(id: string) {
+  if (store.get().progress.queue.includes(id)) dequeue([id]);
+  else enqueue([id]);
 }
 
 /* ---------- backup ---------- */

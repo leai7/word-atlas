@@ -21,6 +21,11 @@ test("keeps valid progress and drops malformed records", () => {
   assert.equal(p.typing.length, 1);
 });
 
+test("keeps the picked-word list, deduplicated, and accepts older data without one", () => {
+  assert.deepEqual(sanitizeProgress({ version: 2, queue: ["b", "a", "b", 7] }, "x").queue, ["b", "a"]);
+  assert.deepEqual(sanitizeProgress({ version: 2 }, "x").queue, []);
+});
+
 test("rejects other versions and unknown settings", () => {
   assert.deepEqual(sanitizeProgress({ version: 1, cards: { ok: card } }, "x").cards, {});
   const s = sanitizeSettings({ accent: "fr", dailyNew: 1e9, theme: "dark", retention: 0.5 });

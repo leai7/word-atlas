@@ -1,9 +1,9 @@
-import { Bookmark, BookmarkCheck, Lightbulb, Share2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, Lightbulb, ListChecks, ListPlus, Share2 } from "lucide-react";
 import type { Entry, WordRef } from "../atlas/types";
 import { useAtlas } from "../atlas/context";
 import { splitHighlight, splitPair } from "../lib/text";
 import { formatInterval, isMastered } from "../store/srs";
-import { toggleBookmark, useStore } from "../store/store";
+import { toggleBookmark, toggleQueued, useStore } from "../store/store";
 import { Illustration } from "./Illustration";
 import { Speak } from "./Speak";
 import { shareWord } from "./share";
@@ -55,6 +55,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
   const ref = atlas.byId.get(entry.id);
   const card = useStore((s) => s.progress.cards[entry.id]);
   const saved = useStore((s) => s.progress.bookmarks.includes(entry.id));
+  const queued = useStore((s) => s.progress.queue.includes(entry.id));
   const accent = useStore((s) => s.settings.accent);
   const topicIdx = atlas.topics.findIndex((t) => t[0] === entry.topic);
   const topic = atlas.topics[topicIdx];
@@ -80,6 +81,11 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
           </div>
           {mode === "detail" && (
             <div className="entry-actions">
+              {!card && (
+                <button className={`icon-btn ${queued ? "is-on" : ""}`} onClick={() => toggleQueued(entry.id)} aria-pressed={queued} aria-label={queued ? "移出待学清单" : "加入待学清单"} title={queued ? "移出待学清单" : "加入待学清单：下次学新词时优先出现"}>
+                  {queued ? <ListChecks size={19} /> : <ListPlus size={19} />}
+                </button>
+              )}
               <button className={`icon-btn ${saved ? "is-on" : ""}`} onClick={() => toggleBookmark(entry.id)} aria-pressed={saved} aria-label={saved ? "取消收藏" : "收藏"} title={saved ? "取消收藏" : "收藏"}>
                 {saved ? <BookmarkCheck size={19} /> : <Bookmark size={19} />}
               </button>

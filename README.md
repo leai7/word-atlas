@@ -1,3 +1,5 @@
+> 本仓库 fork 自 [designfuchen/word-atlas](https://github.com/designfuchen/word-atlas)，新增「我的待学清单」：每日新词先学你指定的词，不足上限再由系统补足。词库、插画与录音沿用原项目（Word Atlas contributors — CC BY 4.0），未作修改。
+
 <div align="center">
 
 <a href="https://0xlei.tech/words/"><img src="docs/assets/cover-v2.jpg" alt="词光 Word Atlas — 一词一画，点亮雅思" width="100%"></a>

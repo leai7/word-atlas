@@ -1606,7 +1606,8 @@ code {
     margin-top: 20px;
   }
   .path-panel,
-  .topics-panel {
+  .topics-panel,
+  .queue-panel {
     grid-column: 1 / -1;
   }
 }
@@ -4119,4 +4120,108 @@ a:hover .mark-needle,
 }
 .streak-panel .mini-stats div:first-child dd {
   color: var(--ochre);
+}
+
+/* ---------- my word list (learner-picked new words) ---------- */
+
+.queue-panel .panel-head {
+  margin-bottom: 8px;
+}
+.queue-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--terra-ink);
+}
+.queue-lede {
+  color: var(--ink-3);
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+.queue-lede svg {
+  vertical-align: -2px;
+}
+.queue-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.queue-form textarea {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  min-height: 72px;
+  padding: 12px 14px;
+  font-size: 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-strong);
+  background: var(--card-2);
+  outline: 0;
+}
+.queue-form textarea:focus {
+  border-color: var(--ink-3);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--terra) 14%, transparent);
+}
+@media (max-width: 560px) {
+  .queue-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+.queue-note {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.queue-note p {
+  margin: 2px 0;
+}
+.queue-note .is-warn {
+  color: var(--terra-ink);
+}
+.queue-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.queue-list li {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  font-size: 14px;
+}
+.queue-list li.is-next {
+  background: var(--ochre-soft);
+}
+.queue-word {
+  padding: 0 4px 0 12px;
+  height: 100%;
+  font-weight: 600;
+}
+.queue-x {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 100%;
+  color: var(--ink-3);
+  border-radius: 999px;
+}
+.queue-x:hover {
+  color: var(--terra-ink);
+}
+.queue-more {
+  padding: 0 12px;
+  color: var(--ink-3);
+}
+.queue-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--ink-3);
 }
