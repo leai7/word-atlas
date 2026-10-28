@@ -3,7 +3,8 @@ import type { Entry, WordRef } from "../atlas/types";
 import { useAtlas } from "../atlas/context";
 import { splitHighlight, splitPair } from "../lib/text";
 import { formatInterval, isMastered } from "../store/srs";
-import { toggleBookmark, toggleQueued, useStore } from "../store/store";
+import { pickWords } from "../store/session";
+import { dequeue, toggleBookmark, useStore } from "../store/store";
 import { Illustration } from "./Illustration";
 import { Speak } from "./Speak";
 import { shareWord } from "./share";
@@ -82,7 +83,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
           {mode === "detail" && (
             <div className="entry-actions">
               {!card && (
-                <button className={`icon-btn ${queued ? "is-on" : ""}`} onClick={() => toggleQueued(entry.id)} aria-pressed={queued} aria-label={queued ? "移出待学清单" : "加入待学清单"} title={queued ? "移出待学清单" : "加入待学清单：下次学新词时优先出现"}>
+                <button className={`icon-btn ${queued ? "is-on" : ""}`} onClick={() => (queued ? dequeue([entry.id]) : pickWords(atlas, [entry.id]))} aria-pressed={queued} aria-label={queued ? "移出待学清单" : "加入待学清单"} title={queued ? "移出待学清单" : "加入待学清单：今天就学"}>
                   {queued ? <ListChecks size={19} /> : <ListPlus size={19} />}
                 </button>
               )}

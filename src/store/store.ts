@@ -62,6 +62,11 @@ export interface Settings {
   ambience: "off" | "stars" | "rain" | "sea" | "forest" | "fire" | "voyage" | "cafe";
   ambienceVolume: number;
   splash: boolean;
+  /** IELTS exam date as YYYY-MM-DD, empty when undecided. */
+  examDate: string;
+  targetBand: number;
+  /** Let the exam plan set the daily new-word number. */
+  planAuto: boolean;
 }
 
 export const defaultSettings: Settings = {
@@ -78,6 +83,9 @@ export const defaultSettings: Settings = {
   ambience: "stars",
   ambienceVolume: 0.45,
   splash: true,
+  examDate: "",
+  targetBand: 6.5,
+  planAuto: false,
 };
 
 export const emptyProgress = (datasetId: string): Progress => ({
@@ -177,6 +185,9 @@ export function sanitizeSettings(v: unknown): Settings {
   if (["off", "stars", "rain", "sea", "forest", "fire", "voyage", "cafe"].includes(v.ambience as string)) s.ambience = v.ambience as Settings["ambience"];
   if (num(v.ambienceVolume, 0, 1)) s.ambienceVolume = v.ambienceVolume as number;
   if (typeof v.splash === "boolean") s.splash = v.splash;
+  if (typeof v.examDate === "string" && /^(\d{4}-\d{2}-\d{2})?$/.test(v.examDate)) s.examDate = v.examDate;
+  if (num(v.targetBand, 5, 8.5)) s.targetBand = Math.round((v.targetBand as number) * 2) / 2;
+  if (typeof v.planAuto === "boolean") s.planAuto = v.planAuto;
   return s;
 }
 
@@ -295,11 +306,6 @@ export function enqueue(ids: string[]) {
 export function dequeue(ids: string[]) {
   const drop = new Set(ids);
   store.progress((p) => ({ ...p, queue: p.queue.filter((x) => !drop.has(x)) }));
-}
-
-export function toggleQueued(id: string) {
-  if (store.get().progress.queue.includes(id)) dequeue([id]);
-  else enqueue([id]);
 }
 
 /* ---------- backup ---------- */

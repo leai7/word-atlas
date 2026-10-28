@@ -1,6 +1,7 @@
 import { Download, RotateCcw, Upload } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { useAtlas } from "../atlas/context";
+import { dailyLimit, examPlan, REVIEW_DAYS } from "../store/session";
 import { isMastered } from "../store/srs";
 import { dayKey, exportBackup, importBackup, resetProgress, store, useStore, type Settings } from "../store/store";
 import { toast } from "../ui/Toast";
@@ -33,6 +34,8 @@ export function Me({ privateAvailable }: { privateAvailable: boolean }) {
   }, [progress]);
 
   const set = (patch: Partial<Settings>) => store.settings(patch);
+  const auto = settings.planAuto && !!settings.examDate;
+  const limit = dailyLimit(atlas, progress, settings);
   const download = () => {
     const blob = new Blob([exportBackup()], { type: "application/json" });
     const a = document.createElement("a");
@@ -109,7 +112,36 @@ export function Me({ privateAvailable }: { privateAvailable: boolean }) {
 
         <section className="panel settings">
           <h3 className="eyebrow">学习设置</h3>
-          <Field label="每日新词" hint="复习不设上限，算法只安排快要遗忘的词。">
+          <Field label="雅思考试日期" hint="设置后可按日期估算每日新词量。日期未定可以留空。">
+            <div className="exam-date">
+              <input type="date" value={settings.examDate} min={dayKey()} onChange={(e) => set({ examDate: e.target.value })} aria-label="考试日期" />
+              {settings.examDate && (
+                <button className="link" onClick={() => set({ examDate: "", planAuto: false })}>
+                  清除
+                </button>
+              )}
+            </div>
+          </Field>
+          {settings.examDate && (
+            <>
+              <Field label="目标分数" hint="决定计划要覆盖到哪个难度的词。">
+                <div className="segmented">
+                  {[5.5, 6, 6.5, 7, 7.5, 8, 8.5].map((n) => (
+                    <button key={n} className={settings.targetBand === n ? "is-on" : ""} onClick={() => set({ targetBand: n })}>
+                      {n.toFixed(1)}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <ExamSummary />
+              <Toggle label="按考试计划自动安排每日新词" on={settings.planAuto} set={(v) => set({ planAuto: v })} />
+            </>
+          )}
+          <Field
+            label="每日新词"
+            hint={auto ? `已由考试计划安排：今天 ${limit} 个。关掉自动安排后可手动设置。` : "复习不设上限，算法只安排快要遗忘的词。"}
+            className={auto ? "is-off" : ""}
+          >
             <div className="segmented">
               {[5, 10, 15, 20, 30].map((n) => (
                 <button key={n} className={settings.dailyNew === n ? "is-on" : ""} onClick={() => set({ dailyNew: n })}>
@@ -209,9 +241,36 @@ export function Me({ privateAvailable }: { privateAvailable: boolean }) {
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function ExamSummary() {
+  const atlas = useAtlas();
+  const progress = useStore((s) => s.progress);
+  const settings = useStore((s) => s.settings);
+  const plan = examPlan(atlas, progress, settings);
+  if (!plan) return null;
+  const range = `${atlas.cefr[settings.startLevel]}–${atlas.cefr[plan.top]}`;
+  let body: React.ReactNode;
+  if (plan.left < 0) body = "考试日期已过，可以更新或清除。";
+  else if (plan.left === 0) body = "今天就是考试日，不再安排新词。祝你顺利！";
+  else if (plan.unseen === 0) body = `目标范围（${range}）内的 ${plan.scope.toLocaleString()} 个词都学过了，接下来专心复习。`;
+  else if (plan.learnDays === 0) body = `距考试 ${plan.left} 天，最后 ${REVIEW_DAYS} 天只复习，不再安排新词。`;
+  else
+    body = (
+      <>
+        目标 {settings.targetBand.toFixed(1)} 分需要 {range} 的 {plan.scope.toLocaleString()} 个词，还有 {plan.unseen.toLocaleString()} 个没学。距考试 {plan.left} 天（最后 {REVIEW_DAYS} 天只复习），每天约 <b>{plan.need}</b> 个新词。
+        {plan.behind && " 超过每天 60 个的上限，建议调高学习起点或调低目标分数。"}
+      </>
+    );
   return (
-    <div className="field">
+    <p className="exam-plan">
+      {body}
+      <small>按 CEFR 与雅思分数的常见对应粗略估算，不代表达到目标分数。</small>
+    </p>
+  );
+}
+
+function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={`field ${className ?? ""}`}>
       <div>
         <b>{label}</b>
         {hint && <small>{hint}</small>}

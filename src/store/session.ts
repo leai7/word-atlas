@@ -2,7 +2,7 @@ import type { Atlas, WordRef } from "../atlas/types";
 import { MEDIA } from "../atlas/types";
 import { hashSeed, normalize, shuffle } from "../lib/text";
 import { isMastered, review, Rating, type Grade } from "./srs";
-import { bumpDay, dayKey, store, type ActiveSession, type Progress, type QuizKind, type Settings, type Step } from "./store";
+import { bumpDay, dayKey, enqueue, store, type ActiveSession, type Progress, type QuizKind, type Settings, type Step } from "./store";
 
 export function dueIds(p: Progress, now = Date.now()) {
   return Object.entries(p.cards)
@@ -21,11 +21,11 @@ export function queuedNew(atlas: Atlas, p: Progress) {
 }
 
 /**
- * Next unseen words: the learner's own picks first, then the learning path
- * from their starting level fills the rest of today's allowance.
+ * Next unseen words: every word the learner picked (they are learned the day they are added),
+ * then the learning path from their starting level fills up to `count`.
  */
 export function nextNew(atlas: Atlas, p: Progress, settings: Settings, count: number) {
-  const out: string[] = queuedNew(atlas, p).slice(0, count);
+  const out: string[] = queuedNew(atlas, p);
   const pass = (from: number) => {
     for (const w of atlas.words) {
       if (out.length >= count) return;
@@ -38,9 +38,46 @@ export function nextNew(atlas: Atlas, p: Progress, settings: Settings, count: nu
   return out;
 }
 
+/** IELTS band → highest CEFR level to cover (A1 = 0 … C2 = 5). A common rough mapping, not an official requirement. */
+export function bandTop(band: number) {
+  return band >= 8.5 ? 5 : band >= 7 ? 4 : band >= 5.5 ? 3 : 2;
+}
+
+/** The last days before the exam are kept for review only. */
+export const REVIEW_DAYS = 3;
+const MAX_DAILY = 60;
+
+/**
+ * Daily new words needed to cover the target band's words before the exam.
+ * Today's new words are counted back in, so the number stays put while you learn.
+ */
+export function examPlan(atlas: Atlas, p: Progress, s: Settings, now = new Date()) {
+  if (!s.examDate) return null;
+  const [y, m, d] = s.examDate.split("-").map(Number);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const left = Math.round((new Date(y, m - 1, d).getTime() - today.getTime()) / 86400000);
+  const top = Math.max(bandTop(s.targetBand), s.startLevel);
+  let scope = 0;
+  let unseen = 0;
+  for (const w of atlas.words) {
+    if (w.cefr < s.startLevel || w.cefr > top) continue;
+    scope++;
+    if (!p.cards[w.id]) unseen++;
+  }
+  const learnDays = Math.max(0, left - REVIEW_DAYS);
+  const need = learnDays && unseen ? Math.ceil((unseen + newToday(p)) / learnDays) : 0;
+  return { left, top, scope, unseen, learnDays, need, daily: Math.min(MAX_DAILY, need), behind: need > MAX_DAILY };
+}
+
+/** Today's new-word allowance: the exam plan's number when it is on, otherwise the fixed setting. */
+export function dailyLimit(atlas: Atlas, p: Progress, s: Settings) {
+  const plan = s.planAuto ? examPlan(atlas, p, s) : null;
+  return plan && plan.left >= 0 ? plan.daily : s.dailyNew;
+}
+
 export function todayPlan(atlas: Atlas, p: Progress, s: Settings) {
   const due = dueIds(p).filter((id) => atlas.byId.has(id));
-  const newLeft = Math.max(0, s.dailyNew - newToday(p));
+  const newLeft = Math.max(0, dailyLimit(atlas, p, s) - newToday(p));
   const fresh = nextNew(atlas, p, s, newLeft);
   const picked = fresh.filter((id) => p.queue.includes(id)).length;
   return { due, fresh, picked, minutes: Math.max(1, Math.round(due.length * 0.25 + fresh.length * 0.9)) };
@@ -97,21 +134,42 @@ export function buildSession(atlas: Atlas, p: Progress, s: Settings, opts?: { id
   const plan = todayPlan(atlas, p, s);
   const reviewIds = opts?.ids ? opts.ids.filter((id) => p.cards[id]) : plan.due.slice(0, 120);
   const newIds = opts?.ids ? opts.ids.filter((id) => !p.cards[id]) : opts?.reviewOnly ? [] : plan.fresh;
-  const steps: Step[] = [];
-  const quiz = (id: string, salt: number): Step => {
-    const ref = atlas.byId.get(id)!;
-    const kind = quizKind(ref, p, s, seed + salt);
-    return { id, kind, options: kind === "spell" ? undefined : distractors(atlas, ref, kind, seed + salt) };
-  };
-  // Reviews first while attention is fresh, then new words in small groups:
-  // meet five, then recall those five in a different order.
-  reviewIds.forEach((id, i) => steps.push(quiz(id, i)));
-  for (let g = 0; g < newIds.length; g += 5) {
-    const group = newIds.slice(g, g + 5);
-    group.forEach((id) => steps.push({ id, kind: "intro" }));
-    shuffle(group, seed + g).forEach((id, i) => steps.push(quiz(id, 1000 + g + i)));
-  }
+  // Reviews first while attention is fresh, then new words in small groups.
+  const steps: Step[] = reviewIds.map((id, i) => quizStep(atlas, p, s, id, seed + i));
+  steps.push(...newWordSteps(atlas, p, s, newIds, seed));
   return { id: `s${seed}`, started: seed, steps, index: 0, graded: {}, newIds, reviewIds };
+}
+
+function quizStep(atlas: Atlas, p: Progress, s: Settings, id: string, salt: number): Step {
+  const ref = atlas.byId.get(id)!;
+  const kind = quizKind(ref, p, s, salt);
+  return { id, kind, options: kind === "spell" ? undefined : distractors(atlas, ref, kind, salt) };
+}
+
+/** Meet five, then recall those five in a different order. */
+function newWordSteps(atlas: Atlas, p: Progress, s: Settings, ids: string[], seed: number) {
+  const steps: Step[] = [];
+  for (let g = 0; g < ids.length; g += 5) {
+    const group = ids.slice(g, g + 5);
+    group.forEach((id) => steps.push({ id, kind: "intro" }));
+    shuffle(group, seed + g).forEach((id, i) => steps.push(quizStep(atlas, p, s, id, seed + 1000 + g + i)));
+  }
+  return steps;
+}
+
+/**
+ * Add words to the learner's list. They are learned today: a journey in progress
+ * takes them at the end, otherwise they lead the next one.
+ */
+export function pickWords(atlas: Atlas, ids: string[]) {
+  enqueue(ids);
+  const { progress, settings } = store.get();
+  const sess = progress.session;
+  if (!sess || sess.finished) return;
+  const add = [...new Set(ids)].filter((id) => atlas.byId.has(id) && !progress.cards[id] && !sess.newIds.includes(id) && !sess.reviewIds.includes(id));
+  if (!add.length) return;
+  const steps = newWordSteps(atlas, progress, settings, add, Date.now());
+  store.progress((p) => (p.session ? { ...p, session: { ...p.session, newIds: [...p.session.newIds, ...add], steps: [...p.session.steps, ...steps] } } : p));
 }
 
 export function gradeFor(kind: QuizKind, correct: boolean, ms: number, hinted: boolean): Grade {

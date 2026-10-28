@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Atlas, WordRef } from "../atlas/types";
 import type { CardState } from "./srs";
-import { nextNew, todayPlan } from "./session";
+import { dailyLimit, examPlan, nextNew, REVIEW_DAYS, todayPlan } from "./session";
 import { defaultSettings, emptyProgress } from "./store";
 
 const words: WordRef[] = ["a1", "a2", "a3", "b1", "b2", "b3"].map((id, order) => ({
@@ -23,12 +23,34 @@ test("picked words come first, the learning path fills the rest", () => {
   assert.deepEqual(nextNew(atlas, p, defaultSettings, 4), ["b3", "b1", "a1", "a2"]);
 });
 
-test("picked words count toward the daily limit", () => {
+test("picked words are all learned today, even past the daily limit", () => {
   const p = { ...emptyProgress("x"), queue: ["b3", "b2", "b1"] };
-  assert.deepEqual(nextNew(atlas, p, defaultSettings, 2), ["b3", "b2"]);
+  assert.deepEqual(nextNew(atlas, p, defaultSettings, 2), ["b3", "b2", "b1"]);
   const plan = todayPlan(atlas, p, { ...defaultSettings, dailyNew: 5 });
-  assert.equal(plan.fresh.length, 5);
+  assert.deepEqual(plan.fresh, ["b3", "b2", "b1", "a1", "a2"]);
   assert.equal(plan.picked, 3);
+});
+
+const day = (offset: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+test("the exam plan spreads unseen target words over the days before review-only time", () => {
+  // Band 5 covers A1–B1; the fixture has 6 unseen words there. 5 days left, last 3 for review → 2 learning days.
+  const s = { ...defaultSettings, examDate: day(5), targetBand: 5, planAuto: true };
+  const plan = examPlan(atlas, emptyProgress("x"), s)!;
+  assert.equal(plan.left, 5);
+  assert.equal(plan.learnDays, 5 - REVIEW_DAYS);
+  assert.equal(plan.daily, 3);
+  assert.equal(dailyLimit(atlas, emptyProgress("x"), s), 3);
+  assert.equal(dailyLimit(atlas, emptyProgress("x"), { ...s, planAuto: false }), defaultSettings.dailyNew);
+});
+
+test("no new words in the last days before the exam", () => {
+  const s = { ...defaultSettings, examDate: day(2), planAuto: true };
+  assert.equal(dailyLimit(atlas, emptyProgress("x"), s), 0);
 });
 
 test("learned or unknown picks are skipped", () => {

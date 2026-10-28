@@ -4,9 +4,9 @@ import { prefetch, useAtlas, useEntry } from "../atlas/context";
 import { go, openWord } from "../lib/router";
 import { cue } from "../lib/sound";
 import { hashSeed } from "../lib/text";
-import { buildSession, masteredCount, queuedNew, todayPlan } from "../store/session";
+import { buildSession, dailyLimit, examPlan, masteredCount, pickWords, queuedNew, todayPlan } from "../store/session";
 import { isMastered } from "../store/srs";
-import { dayKey, dequeue, enqueue, store, useStore } from "../store/store";
+import { dayKey, dequeue, store, useStore } from "../store/store";
 import { Galaxy } from "../galaxy/Galaxy";
 import { Highlight, Pronounce } from "../ui/EntryView";
 import { Illustration } from "../ui/Illustration";
@@ -50,12 +50,14 @@ export function Today() {
   const streak = streakOf(progress.days);
   const active = progress.session && !progress.session.finished ? progress.session : null;
   const total = plan.due.length + plan.fresh.length;
-  const goal = settings.dailyNew + Math.min(plan.due.length, 60);
+  const limit = dailyLimit(atlas, progress, settings);
+  const exam = useMemo(() => examPlan(atlas, progress, settings), [atlas, progress, settings]);
+  const goal = limit + Math.min(plan.due.length, 60);
   const doneToday = today?.r ?? 0;
 
   const start = (opts?: { reviewOnly?: boolean; extra?: number }) => {
     if (!active) {
-      const s = buildSession(atlas, progress, opts?.extra ? { ...settings, dailyNew: (today?.n ?? 0) + opts.extra } : settings, { reviewOnly: opts?.reviewOnly });
+      const s = buildSession(atlas, progress, opts?.extra ? { ...settings, planAuto: false, dailyNew: (today?.n ?? 0) + opts.extra } : settings, { reviewOnly: opts?.reviewOnly });
       if (!s.steps.length) return;
       store.progress((p) => ({ ...p, session: s }));
     }
@@ -81,6 +83,11 @@ export function Today() {
           {now.getMonth() + 1}月{now.getDate()}日 · 星期{"日一二三四五六"[now.getDay()]}
         </p>
         <h1 className="display">{greeting(now.getHours())}，探索者。</h1>
+        {exam && exam.left >= 0 && (
+          <p className="exam-countdown">
+            {exam.left === 0 ? "今天考雅思，祝你顺利！" : <>距雅思考试还有 <b>{exam.left}</b> 天 · 目标 {settings.targetBand.toFixed(1)} 分</>}
+          </p>
+        )}
       </header>
 
       <section className={`journey ${total === 0 && !active ? "is-clear" : ""}`}>
@@ -357,7 +364,8 @@ function parseWords(text: string) {
 function QueuePanel() {
   const atlas = useAtlas();
   const progress = useStore((s) => s.progress);
-  const dailyNew = useStore((s) => s.settings.dailyNew);
+  const settings = useStore((s) => s.settings);
+  const dailyNew = dailyLimit(atlas, progress, settings);
   const [text, setText] = useState("");
   const [note, setNote] = useState<{ added: number; learned: string[]; missing: string[] } | null>(null);
   const waiting = useMemo(() => queuedNew(atlas, progress), [atlas, progress]);
@@ -379,7 +387,7 @@ function QueuePanel() {
       else missing.push(whole);
     }
     const fresh = [...new Set(ids)].filter((id) => !progress.queue.includes(id));
-    if (fresh.length) enqueue(fresh);
+    if (fresh.length) pickWords(atlas, fresh);
     setNote({ added: fresh.length, learned: [...new Set(learned)], missing: [...new Set(missing)] });
     if (!missing.length) setText("");
   };
@@ -392,7 +400,7 @@ function QueuePanel() {
         {waiting.length > 0 && <span className="queue-count">{waiting.length} 个待学</span>}
       </div>
       <p className="queue-lede">
-        学新词时先学这里的词，不够每天 {dailyNew} 个再由系统补上。也可以在单词页点 <ListPlus size={14} /> 加入。
+        加入的词当天就学，旅程进行中也会接在后面。今天的新词先学这里的，不够 {dailyNew} 个再由系统补上。也可以在单词页点 <ListPlus size={14} /> 加入。
       </p>
       <div className="queue-form">
         <textarea
@@ -419,10 +427,10 @@ function QueuePanel() {
       {waiting.length > 0 && (
         <>
           <ul className="queue-list">
-            {shown.map((id, i) => {
+            {shown.map((id) => {
               const w = atlas.byId.get(id)!;
               return (
-                <li key={id} className={i < dailyNew ? "is-next" : ""}>
+                <li key={id}>
                   <button className="queue-word" onClick={() => openWord(id)} lang="en" title={w.zh}>
                     {w.word}
                   </button>
@@ -435,7 +443,7 @@ function QueuePanel() {
             {waiting.length > shown.length && <li className="queue-more">还有 {waiting.length - shown.length} 个</li>}
           </ul>
           <div className="queue-foot">
-            <small>金色的词会出现在下一次的新词里。</small>
+            <small>学过的词会自动移出清单。</small>
             <button className="link" onClick={() => window.confirm("清空待学清单？已学过的进度不受影响。") && dequeue(progress.queue)}>
               清空清单
             </button>

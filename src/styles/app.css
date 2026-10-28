@@ -4194,9 +4194,6 @@ a:hover .mark-needle,
   background: var(--paper-2);
   font-size: 14px;
 }
-.queue-list li.is-next {
-  background: var(--ochre-soft);
-}
 .queue-word {
   padding: 0 4px 0 12px;
   height: 100%;
@@ -4224,4 +4221,49 @@ a:hover .mark-needle,
   gap: 12px;
   margin-top: 14px;
   color: var(--ink-3);
+}
+
+/* ---------- exam plan ---------- */
+
+.exam-countdown {
+  margin-top: 6px;
+  color: var(--ink-3);
+  font-size: 15px;
+}
+.exam-countdown b {
+  color: var(--terra-ink);
+  font-size: 18px;
+}
+.exam-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.exam-date input {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--card-2);
+  font-size: 15px;
+}
+.exam-plan {
+  margin: 4px 0 6px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--paper-2);
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.exam-plan b {
+  color: var(--terra-ink);
+}
+.exam-plan small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-3);
+}
+.field.is-off .segmented {
+  opacity: 0.45;
+  pointer-events: none;
 }
