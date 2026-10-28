@@ -7,7 +7,7 @@ import { burst } from "../lib/burst";
 import { cue } from "../lib/sound";
 import { go } from "../lib/router";
 import { gap, normalize } from "../lib/text";
-import { answer, advance, buildSession, gradeFor, sessionStats } from "../store/session";
+import { answer, advance, buildSession, gradeFor, sessionStats, skipKnown } from "../store/session";
 import { Rating } from "../store/srs";
 import { store, useStore, type ActiveSession, type QuizKind, type Step } from "../store/store";
 import { EntryView, Highlight } from "../ui/EntryView";
@@ -112,6 +112,9 @@ function Intro({ step }: { step: Step }) {
       <footer className="learn-actions">
         <button className="btn btn-primary btn-xl" onClick={next} autoFocus>
           认识了 <ArrowRight size={20} />
+        </button>
+        <button className="btn btn-ghost" onClick={() => (stopAudio(), skipKnown(atlas, step.id))} title="以后不再安排这个词，换一个新词">
+          早就会了，不用学
         </button>
         <span className="hint-keys">
           <kbd>Enter</kbd> 继续

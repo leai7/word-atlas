@@ -1,10 +1,10 @@
-import { ArrowRight, Flame, Keyboard, ListPlus, Sparkles, X } from "lucide-react";
+import { ArrowRight, Check, Flame, Keyboard, ListPlus, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { prefetch, useAtlas, useEntry } from "../atlas/context";
 import { go, openWord } from "../lib/router";
 import { cue } from "../lib/sound";
 import { hashSeed } from "../lib/text";
-import { buildSession, dailyLimit, examPlan, masteredCount, pickWords, queuedNew, todayPlan } from "../store/session";
+import { buildSession, dailyLimit, dropNew, examPlan, masteredCount, pickWords, queuedNew, skipKnown, todayPlan, unmetNew } from "../store/session";
 import { isMastered } from "../store/srs";
 import { dayKey, dequeue, store, useStore } from "../store/store";
 import { Galaxy } from "../galaxy/Galaxy";
@@ -365,15 +365,22 @@ function QueuePanel() {
   const atlas = useAtlas();
   const progress = useStore((s) => s.progress);
   const settings = useStore((s) => s.settings);
-  const dailyNew = dailyLimit(atlas, progress, settings);
+  const limit = dailyLimit(atlas, progress, settings);
   const [text, setText] = useState("");
-  const [note, setNote] = useState<{ added: number; learned: string[]; missing: string[] } | null>(null);
-  const waiting = useMemo(() => queuedNew(atlas, progress), [atlas, progress]);
+  const [note, setNote] = useState<{ added: number; today: number; learned: string[]; missing: string[] } | null>(null);
   const byWord = useMemo(() => {
     const m = new Map<string, string>();
     for (const w of atlas.words) if (!m.has(w.word.toLowerCase())) m.set(w.word.toLowerCase(), w.id);
     return m;
   }, [atlas]);
+  // New words still ahead today: the unseen part of a journey in progress, or the next journey's plan.
+  const { ahead, later } = useMemo(() => {
+    const s = progress.session;
+    const active = s && !s.finished && s.index < s.steps.length ? s : null;
+    const ahead = active ? unmetNew(active) : todayPlan(atlas, progress, settings).fresh;
+    const later = queuedNew(atlas, progress).filter((id) => !ahead.includes(id) && !active?.newIds.includes(id));
+    return { ahead, later };
+  }, [atlas, progress, settings]);
 
   const add = () => {
     const ids: string[] = [];
@@ -387,69 +394,91 @@ function QueuePanel() {
       else missing.push(whole);
     }
     const fresh = [...new Set(ids)].filter((id) => !progress.queue.includes(id));
-    if (fresh.length) pickWords(atlas, fresh);
-    setNote({ added: fresh.length, learned: [...new Set(learned)], missing: [...new Set(missing)] });
+    const today = fresh.length ? pickWords(atlas, fresh) : 0;
+    setNote({ added: fresh.length, today, learned: [...new Set(learned)], missing: [...new Set(missing)] });
     if (!missing.length) setText("");
   };
 
-  const shown = waiting.slice(0, 60);
+  const chip = (id: string, picked: boolean) => {
+    const w = atlas.byId.get(id)!;
+    return (
+      <li key={id} className={picked ? "is-pick" : ""}>
+        <button className="queue-word" onClick={() => openWord(id)} lang="en" title={w.zh}>
+          {w.word}
+        </button>
+        {picked ? (
+          <button className="queue-x" onClick={() => dropNew(atlas, id)} aria-label={`移出 ${w.word}`} title="移出清单，由系统补一个词">
+            <X size={14} />
+          </button>
+        ) : (
+          <button className="queue-x" onClick={() => skipKnown(atlas, id)} aria-label={`${w.word} 我认识，不用学`} title="我认识，不用学（以后也不再安排）">
+            <Check size={14} />
+          </button>
+        )}
+      </li>
+    );
+  };
+
   return (
     <section className="panel queue-panel">
       <div className="panel-head">
-        <h3 className="eyebrow">我的待学清单</h3>
-        {waiting.length > 0 && <span className="queue-count">{waiting.length} 个待学</span>}
+        <h3 className="eyebrow">今天的新词</h3>
+        <span className="queue-count">每天 {limit} 个</span>
       </div>
       <p className="queue-lede">
-        加入的词当天就学，旅程进行中也会接在后面。今天的新词先学这里的，不够 {dailyNew} 个再由系统补上。也可以在单词页点 <ListPlus size={14} /> 加入。
+        先学你指定的词，名额不够再由系统补。认识的系统推荐词点 <Check size={14} /> 跳过，会换一个新词。也可以在单词页点 <ListPlus size={14} /> 指定。
       </p>
       <div className="queue-form">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={3}
-          placeholder="粘贴英文单词，用空格、逗号或换行分隔"
-          aria-label="要加入待学清单的单词"
+          placeholder="粘贴想学的英文单词，用空格、逗号或换行分隔"
+          aria-label="要指定学习的单词"
           lang="en"
           spellCheck={false}
           autoCapitalize="none"
         />
         <button className="btn btn-primary" onClick={add} disabled={!text.trim()}>
-          加入清单
+          指定学习
         </button>
       </div>
       {note && (
         <div className="queue-note" role="status">
-          <p>{note.added ? `已加入 ${note.added} 个词。` : "没有新加入的词。"}</p>
+          <p>
+            {note.added ? `已指定 ${note.added} 个词，${note.today} 个今天学。` : "没有新指定的词。"}
+            {note.added > note.today && `其余 ${note.added - note.today} 个超出今天的名额（或今天的名额已学完），排到之后几天。`}
+          </p>
           {note.learned.length > 0 && <p>已经学过，不再加入：{note.learned.join("、")}</p>}
           {note.missing.length > 0 && <p className="is-warn">词库里没有：{note.missing.join("、")}</p>}
         </div>
       )}
-      {waiting.length > 0 && (
+      {ahead.length > 0 ? (
+        <ul className="queue-list" aria-label="今天还会学的新词">
+          {ahead.map((id) => chip(id, progress.queue.includes(id)))}
+        </ul>
+      ) : (
+        <p className="queue-empty">今天的新词名额已用完。</p>
+      )}
+      {later.length > 0 && (
         <>
+          <h4 className="queue-sub">排到之后几天 · {later.length} 个</h4>
           <ul className="queue-list">
-            {shown.map((id) => {
-              const w = atlas.byId.get(id)!;
-              return (
-                <li key={id}>
-                  <button className="queue-word" onClick={() => openWord(id)} lang="en" title={w.zh}>
-                    {w.word}
-                  </button>
-                  <button className="queue-x" onClick={() => dequeue([id])} aria-label={`移出 ${w.word}`}>
-                    <X size={14} />
-                  </button>
-                </li>
-              );
-            })}
-            {waiting.length > shown.length && <li className="queue-more">还有 {waiting.length - shown.length} 个</li>}
+            {later.slice(0, 60).map((id) => chip(id, true))}
+            {later.length > 60 && <li className="queue-more">还有 {later.length - 60} 个</li>}
           </ul>
-          <div className="queue-foot">
-            <small>学过的词会自动移出清单。</small>
-            <button className="link" onClick={() => window.confirm("清空待学清单？已学过的进度不受影响。") && dequeue(progress.queue)}>
-              清空清单
-            </button>
-          </div>
         </>
       )}
+      <div className="queue-foot">
+        <small>
+          <span className="queue-legend" /> 你指定的词
+        </small>
+        {progress.queue.length > 0 && (
+          <button className="link" onClick={() => window.confirm("清空你指定的词？已学过的进度不受影响。") && dequeue(progress.queue)}>
+            清空指定
+          </button>
+        )}
+      </div>
     </section>
   );
 }

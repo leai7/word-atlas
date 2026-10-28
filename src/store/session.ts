@@ -2,7 +2,7 @@ import type { Atlas, WordRef } from "../atlas/types";
 import { MEDIA } from "../atlas/types";
 import { hashSeed, normalize, shuffle } from "../lib/text";
 import { isMastered, review, Rating, type Grade } from "./srs";
-import { bumpDay, dayKey, enqueue, store, type ActiveSession, type Progress, type QuizKind, type Settings, type Step } from "./store";
+import { bumpDay, dayKey, store, type ActiveSession, type Progress, type QuizKind, type Settings, type Step } from "./store";
 
 export function dueIds(p: Progress, now = Date.now()) {
   return Object.entries(p.cards)
@@ -21,15 +21,17 @@ export function queuedNew(atlas: Atlas, p: Progress) {
 }
 
 /**
- * Next unseen words: every word the learner picked (they are learned the day they are added),
- * then the learning path from their starting level fills up to `count`.
+ * Next unseen words within today's allowance: the learner's own picks first,
+ * then the learning path from their starting level fills the rest.
+ * Words marked as known and anything in `skip` are left out.
  */
-export function nextNew(atlas: Atlas, p: Progress, settings: Settings, count: number) {
-  const out: string[] = queuedNew(atlas, p);
+export function nextNew(atlas: Atlas, p: Progress, settings: Settings, count: number, skip: string[] = []) {
+  const out: string[] = queuedNew(atlas, p).filter((id) => !skip.includes(id)).slice(0, count);
+  const known = new Set(p.known);
   const pass = (from: number) => {
     for (const w of atlas.words) {
       if (out.length >= count) return;
-      if (w.cefr < from || p.cards[w.id] || out.includes(w.id)) continue;
+      if (w.cefr < from || p.cards[w.id] || known.has(w.id) || out.includes(w.id) || skip.includes(w.id)) continue;
       out.push(w.id);
     }
   };
@@ -57,12 +59,13 @@ export function examPlan(atlas: Atlas, p: Progress, s: Settings, now = new Date(
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const left = Math.round((new Date(y, m - 1, d).getTime() - today.getTime()) / 86400000);
   const top = Math.max(bandTop(s.targetBand), s.startLevel);
+  const known = new Set(p.known);
   let scope = 0;
   let unseen = 0;
   for (const w of atlas.words) {
     if (w.cefr < s.startLevel || w.cefr > top) continue;
     scope++;
-    if (!p.cards[w.id]) unseen++;
+    if (!p.cards[w.id] && !known.has(w.id)) unseen++;
   }
   const learnDays = Math.max(0, left - REVIEW_DAYS);
   const need = learnDays && unseen ? Math.ceil((unseen + newToday(p)) / learnDays) : 0;
@@ -157,19 +160,73 @@ function newWordSteps(atlas: Atlas, p: Progress, s: Settings, ids: string[], see
   return steps;
 }
 
+const activeSession = (p: Progress) => (p.session && !p.session.finished && p.session.index < p.session.steps.length ? p.session : null);
+
+/** New words of a journey that have not been shown yet (their first card is still ahead). */
+export function unmetNew(s: ActiveSession) {
+  return s.newIds.filter((id) => !(id in s.graded) && s.steps.findIndex((x) => x.id === id) > s.index);
+}
+
+/** Take words out of a journey from the current step on, keeping everything already done. */
+function withoutWords(s: ActiveSession, ids: string[]): ActiveSession {
+  const drop = new Set(ids);
+  const steps = [...s.steps.slice(0, s.index), ...s.steps.slice(s.index).filter((x) => !drop.has(x.id))];
+  return { ...s, steps, newIds: s.newIds.filter((id) => !drop.has(id)) };
+}
+
+function withWords(atlas: Atlas, p: Progress, settings: Settings, s: ActiveSession, ids: string[]): ActiveSession {
+  if (!ids.length) return s;
+  return { ...s, newIds: [...s.newIds, ...ids], steps: [...s.steps, ...newWordSteps(atlas, p, settings, ids, Date.now())] };
+}
+
+const settle = (s: ActiveSession): ActiveSession => (s.index >= s.steps.length ? { ...s, pending: undefined, finished: Date.now() } : s);
+
 /**
- * Add words to the learner's list. They are learned today: a journey in progress
- * takes them at the end, otherwise they lead the next one.
+ * Add words to the learner's list. Within today's allowance they are learned today:
+ * a journey in progress gives them the places of system words not shown yet.
+ * Picks beyond the allowance wait for the next day.
+ * Returns how many of the new picks land in today's learning.
  */
 export function pickWords(atlas: Atlas, ids: string[]) {
-  enqueue(ids);
+  const before = store.get().progress;
+  const fresh = [...new Set(ids)].filter((id) => atlas.byId.has(id) && !before.cards[id]);
+  store.progress((p) => ({ ...p, queue: [...new Set([...p.queue, ...ids])].slice(0, 2000), known: p.known.filter((x) => !fresh.includes(x)) }));
   const { progress, settings } = store.get();
-  const sess = progress.session;
-  if (!sess || sess.finished) return;
-  const add = [...new Set(ids)].filter((id) => atlas.byId.has(id) && !progress.cards[id] && !sess.newIds.includes(id) && !sess.reviewIds.includes(id));
-  if (!add.length) return;
-  const steps = newWordSteps(atlas, progress, settings, add, Date.now());
-  store.progress((p) => (p.session ? { ...p, session: { ...p.session, newIds: [...p.session.newIds, ...add], steps: [...p.session.steps, ...steps] } } : p));
+  const sess = activeSession(progress);
+  if (!sess) {
+    const today = todayPlan(atlas, progress, settings).fresh;
+    return fresh.filter((id) => today.includes(id)).length;
+  }
+  const add = fresh.filter((id) => !sess.newIds.includes(id) && !sess.reviewIds.includes(id));
+  const inSession = fresh.length - add.length;
+  // Room left today, counting new words of this journey not answered yet.
+  const pendingNew = sess.newIds.filter((id) => !(id in sess.graded)).length;
+  const room = Math.max(0, dailyLimit(atlas, progress, settings) - newToday(progress) - pendingNew);
+  const swappable = unmetNew(sess).filter((id) => !progress.queue.includes(id));
+  const take = Math.min(add.length, room + swappable.length);
+  const swap = swappable.slice(swappable.length - Math.max(0, take - room));
+  const next = withWords(atlas, progress, settings, withoutWords(sess, swap), add.slice(0, take));
+  store.progress((p) => ({ ...p, session: next }));
+  return inSession + take;
+}
+
+/** The learner already knows this word: never offer it as new again. */
+export function skipKnown(atlas: Atlas, id: string) {
+  dropNew(atlas, id, true);
+}
+
+/**
+ * Take a word out of today's new words (and out of the learner's list).
+ * In a journey it leaves from the current step on, and the next word in line takes its place.
+ */
+export function dropNew(atlas: Atlas, id: string, known = false) {
+  store.progress((p) => ({ ...p, known: known ? [...new Set([...p.known, id])] : p.known, queue: p.queue.filter((x) => x !== id) }));
+  const { progress, settings } = store.get();
+  const sess = activeSession(progress);
+  if (!sess || !sess.newIds.includes(id) || id in sess.graded) return;
+  const rest = withoutWords(sess, [id]);
+  const swap = nextNew(atlas, progress, settings, 1, [...rest.newIds, ...rest.reviewIds]);
+  store.progress((p) => ({ ...p, session: settle(withWords(atlas, progress, settings, rest, swap)) }));
 }
 
 export function gradeFor(kind: QuizKind, correct: boolean, ms: number, hinted: boolean): Grade {

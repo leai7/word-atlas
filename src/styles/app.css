@@ -4210,6 +4210,32 @@ a:hover .mark-needle,
 .queue-x:hover {
   color: var(--terra-ink);
 }
+.queue-list li.is-pick {
+  background: var(--ochre-soft);
+}
+.queue-sub {
+  margin: 16px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.queue-sub + .queue-list {
+  margin-top: 8px;
+}
+.queue-empty {
+  margin: 16px 0 0;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.queue-legend {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ochre-soft);
+  border: 1px solid var(--ochre);
+  vertical-align: -1px;
+}
 .queue-more {
   padding: 0 12px;
   color: var(--ink-3);

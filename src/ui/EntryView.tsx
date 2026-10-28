@@ -1,10 +1,10 @@
-import { Bookmark, BookmarkCheck, Lightbulb, ListChecks, ListPlus, Share2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, CircleCheck, Lightbulb, ListChecks, ListPlus, Share2 } from "lucide-react";
 import type { Entry, WordRef } from "../atlas/types";
 import { useAtlas } from "../atlas/context";
 import { splitHighlight, splitPair } from "../lib/text";
 import { formatInterval, isMastered } from "../store/srs";
-import { pickWords } from "../store/session";
-import { dequeue, toggleBookmark, useStore } from "../store/store";
+import { pickWords, skipKnown } from "../store/session";
+import { dequeue, toggleBookmark, unmarkKnown, useStore } from "../store/store";
 import { Illustration } from "./Illustration";
 import { Speak } from "./Speak";
 import { shareWord } from "./share";
@@ -57,6 +57,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
   const card = useStore((s) => s.progress.cards[entry.id]);
   const saved = useStore((s) => s.progress.bookmarks.includes(entry.id));
   const queued = useStore((s) => s.progress.queue.includes(entry.id));
+  const known = useStore((s) => s.progress.known.includes(entry.id));
   const accent = useStore((s) => s.settings.accent);
   const topicIdx = atlas.topics.findIndex((t) => t[0] === entry.topic);
   const topic = atlas.topics[topicIdx];
@@ -66,7 +67,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
     const hit = atlas.words.find((x) => x.word.toLowerCase() === w);
     return { label: f, id: hit?.id };
   });
-  const status = card ? (isMastered(card) ? "已掌握" : "学习中") : null;
+  const status = card ? (isMastered(card) ? "已掌握" : "学习中") : known ? "已认识" : null;
 
   return (
     <article className={`entry entry-${mode}`}>
@@ -83,7 +84,18 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
           {mode === "detail" && (
             <div className="entry-actions">
               {!card && (
-                <button className={`icon-btn ${queued ? "is-on" : ""}`} onClick={() => (queued ? dequeue([entry.id]) : pickWords(atlas, [entry.id]))} aria-pressed={queued} aria-label={queued ? "移出待学清单" : "加入待学清单"} title={queued ? "移出待学清单" : "加入待学清单：今天就学"}>
+                <button
+                  className={`icon-btn ${known ? "is-on" : ""}`}
+                  onClick={() => (known ? unmarkKnown(entry.id) : skipKnown(atlas, entry.id))}
+                  aria-pressed={known}
+                  aria-label={known ? "取消“已认识”" : "我认识这个词"}
+                  title={known ? "取消“已认识”，以后可能再安排它" : "我认识这个词：以后不再安排它为新词"}
+                >
+                  <CircleCheck size={19} />
+                </button>
+              )}
+              {!card && (
+                <button className={`icon-btn ${queued ? "is-on" : ""}`} onClick={() => (queued ? dequeue([entry.id]) : pickWords(atlas, [entry.id]))} aria-pressed={queued} aria-label={queued ? "移出待学清单" : "加入待学清单"} title={queued ? "移出待学清单" : "加入待学清单：在每日名额内优先学习"}>
                   {queued ? <ListChecks size={19} /> : <ListPlus size={19} />}
                 </button>
               )}

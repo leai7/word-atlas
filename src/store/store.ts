@@ -46,6 +46,8 @@ export interface Progress {
   mistakes: string[];
   /** Words the learner picked to meet next; they come before the system's picks within the daily limit. */
   queue: string[];
+  /** Words the learner already knows; never offered as new words. */
+  known: string[];
 }
 
 export interface Settings {
@@ -98,6 +100,7 @@ export const emptyProgress = (datasetId: string): Progress => ({
   session: null,
   mistakes: [],
   queue: [],
+  known: [],
 });
 
 export const dayKey = (d = new Date()) =>
@@ -150,6 +153,7 @@ export function sanitizeProgress(v: unknown, datasetId: string): Progress {
   if (!isObj(v) || v.version !== 2) return out;
   if (isObj(v.cards)) for (const [k, c] of Object.entries(v.cards)) if (validCard(c)) out.cards[k] = c;
   if (Array.isArray(v.bookmarks)) out.bookmarks = v.bookmarks.filter((x): x is string => typeof x === "string").slice(0, 20000);
+  if (Array.isArray(v.known)) out.known = [...new Set(v.known.filter((x): x is string => typeof x === "string"))].slice(0, 20000);
   if (Array.isArray(v.queue)) out.queue = [...new Set(v.queue.filter((x): x is string => typeof x === "string"))].slice(0, 2000);
   if (Array.isArray(v.mistakes)) out.mistakes = v.mistakes.filter((x): x is string => typeof x === "string").slice(0, 300);
   if (isObj(v.days))
@@ -306,6 +310,10 @@ export function enqueue(ids: string[]) {
 export function dequeue(ids: string[]) {
   const drop = new Set(ids);
   store.progress((p) => ({ ...p, queue: p.queue.filter((x) => !drop.has(x)) }));
+}
+
+export function unmarkKnown(id: string) {
+  store.progress((p) => ({ ...p, known: p.known.filter((x) => x !== id) }));
 }
 
 /* ---------- backup ---------- */
