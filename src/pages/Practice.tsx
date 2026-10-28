@@ -129,6 +129,8 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
   const [totals, setTotals] = useState(totalsRef.current);
   const [done, setDone] = useState(false);
   const started = useRef<number | null>(null);
+  /** Letters revealed by hints in the current item; they don't count toward speed. */
+  const hinted = useRef(0);
   const input = useRef<HTMLInputElement>(null);
   const e = entries[i];
   const target = mode === "word" ? e.w : e.ex[0].en;
@@ -138,6 +140,7 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
   useEffect(() => {
     setValue("");
     started.current = null;
+    hinted.current = 0;
     input.current?.focus();
     if (mode === "dictation") void play(atlas.audio(e, "ex"), e.ex[0].en, settings.accent);
     if (mode === "word" && settings.autoplay) void play(atlas.audio(e, settings.accent), e.w, settings.accent);
@@ -158,7 +161,7 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
 
   const finishItem = (final: string) => {
     const ms = started.current ? performance.now() - started.current : 0;
-    const accepted = correctCharacterCount(final, target);
+    const accepted = Math.max(0, correctCharacterCount(final, target) - hinted.current);
     if (settings.sfx) void cue("correct");
     const t = totalsRef.current;
     const nt = { ...t, accepted: t.accepted + accepted, ms: t.ms + ms };
@@ -179,6 +182,7 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
     while (end < target.length && !/[A-Za-z0-9]/.test(target[end - 1])) end++;
     // Hinted letters are not counted as typing, so speed and accuracy stay honest.
     const next = target.slice(0, Math.min(end, target.length));
+    hinted.current += Math.max(0, next.length - k);
     setValue(next);
     input.current?.focus();
     if (same(next, target)) finishItem(next);
