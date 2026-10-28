@@ -69,6 +69,8 @@ export interface Settings {
   targetBand: number;
   /** Let the exam plan set the daily new-word number. */
   planAuto: boolean;
+  /** Show the text while typing (copy practice); off means recall from the picture or translation. */
+  typingPeek: boolean;
 }
 
 export const defaultSettings: Settings = {
@@ -88,6 +90,7 @@ export const defaultSettings: Settings = {
   examDate: "",
   targetBand: 6.5,
   planAuto: false,
+  typingPeek: false,
 };
 
 export const emptyProgress = (datasetId: string): Progress => ({
@@ -192,6 +195,7 @@ export function sanitizeSettings(v: unknown): Settings {
   if (typeof v.examDate === "string" && /^(\d{4}-\d{2}-\d{2})?$/.test(v.examDate)) s.examDate = v.examDate;
   if (num(v.targetBand, 5, 8.5)) s.targetBand = Math.round((v.targetBand as number) * 2) / 2;
   if (typeof v.planAuto === "boolean") s.planAuto = v.planAuto;
+  if (typeof v.typingPeek === "boolean") s.typingPeek = v.typingPeek;
   return s;
 }
 

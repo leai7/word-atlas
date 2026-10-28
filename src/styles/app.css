@@ -4293,3 +4293,14 @@ a:hover .mark-needle,
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* ---------- typing without the text shown ---------- */
+
+.typing-peek {
+  margin: -4px 0 14px;
+}
+.typing-hint {
+  justify-self: center;
+  height: 36px;
+  font-size: 14px;
+}

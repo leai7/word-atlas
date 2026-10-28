@@ -1,4 +1,4 @@
-import { Headphones, Keyboard, RotateCcw, Type } from "lucide-react";
+import { Headphones, Keyboard, Lightbulb, RotateCcw, Type } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { prefetch, useAtlas } from "../atlas/context";
 import type { Entry } from "../atlas/types";
@@ -15,7 +15,7 @@ type Source = "recent" | "mistakes" | "saved" | "path";
 
 const MODES: [Mode, string, string, typeof Type][] = [
   ["word", "单词", "看图写出单词", Type],
-  ["sentence", "例句", "照着抄写，练出手感", Keyboard],
+  ["sentence", "例句", "看中文，默写英文例句", Keyboard],
   ["dictation", "听写", "只听声音，写下整句", Headphones],
 ];
 const SOURCES: [Source, string][] = [
@@ -29,6 +29,7 @@ export function Practice() {
   const atlas = useAtlas();
   const progress = useStore((s) => s.progress);
   const startLevel = useStore((s) => s.settings.startLevel);
+  const peek = useStore((s) => s.settings.typingPeek);
   const [mode, setMode] = useState<Mode>("word");
   const [source, setSource] = useState<Source>(() => (Object.keys(progress.cards).length ? "recent" : "path"));
   const [round, setRound] = useState<{ entries: Entry[]; key: number } | null>(null);
@@ -66,10 +67,17 @@ export function Practice() {
               <button key={k} className={`mode-card ${mode === k ? "is-on" : ""}`} onClick={() => setMode(k)} aria-pressed={mode === k}>
                 <Icon size={22} strokeWidth={1.7} />
                 <b>{name}</b>
-                <small>{desc}</small>
+                <small>{k === "sentence" && peek ? "照着抄写，练出手感" : k === "word" && peek ? "照着单词打字" : desc}</small>
               </button>
             ))}
           </div>
+          {mode !== "dictation" && (
+            <label className="field toggle typing-peek">
+              <b>显示原文（照着打）</b>
+              <input type="checkbox" role="switch" checked={peek} onChange={(e) => store.settings({ typingPeek: e.target.checked })} />
+              <span className="switch" aria-hidden="true" />
+            </label>
+          )}
           <h3 className="eyebrow">词来自</h3>
           <div className="segmented segmented-wide">
             {SOURCES.map(([k, label]) => (
@@ -124,6 +132,8 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
   const input = useRef<HTMLInputElement>(null);
   const e = entries[i];
   const target = mode === "word" ? e.w : e.ex[0].en;
+  // Dictation never shows the text; word and sentence practice only when asked to.
+  const hidden = mode === "dictation" || !settings.typingPeek;
 
   useEffect(() => {
     setValue("");
@@ -159,6 +169,19 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
       const m = typingMetrics(nt.correct, nt.typed, nt.accepted, nt.ms);
       store.progress((p) => ({ ...p, typing: [...p.typing, { at: Date.now(), mode, items: entries.length, wpm: m.wpm, accuracy: m.accuracy }].slice(-500) }));
     } else window.setTimeout(() => setI(i + 1), 260);
+  };
+
+  /** Reveal the next letter after the part typed correctly (and any spaces or punctuation before it). */
+  const hint = () => {
+    let k = 0;
+    while (k < target.length && k < value.length && same(value[k], target[k])) k++;
+    let end = k + 1;
+    while (end < target.length && !/[A-Za-z0-9]/.test(target[end - 1])) end++;
+    // Hinted letters are not counted as typing, so speed and accuracy stay honest.
+    const next = target.slice(0, Math.min(end, target.length));
+    setValue(next);
+    input.current?.focus();
+    if (same(next, target)) finishItem(next);
   };
 
   const m = typingMetrics(totals.correct, totals.typed, totals.accepted, totals.ms);
@@ -219,11 +242,12 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
             {e.ex[0].zh}
           </p>
         )}
-        <p className={`typing-text ${mode === "word" ? "is-word" : ""} ${mode === "dictation" ? "is-hidden" : ""}`} lang="en" aria-hidden="true">
+        <p className={`typing-text ${mode === "word" ? "is-word" : ""} ${hidden ? "is-hidden" : ""}`} lang="en" aria-hidden="true">
           {chars.map((ch, k) => {
             const t = typed[k];
             const cls = t === undefined ? (k === typed.length ? "is-caret" : "") : same(t, ch) ? "is-ok" : "is-bad";
-            const show = mode === "dictation" && t === undefined ? (ch === " " ? " " : /[A-Za-z]/.test(ch) ? "·" : ch) : ch;
+            // Hidden text shows a dot per letter; a wrong key shows what was typed, never the answer.
+            const show = !hidden ? ch : t === undefined ? (ch === " " ? " " : /[A-Za-z]/.test(ch) ? "·" : ch) : same(t, ch) ? ch : t === " " ? "_" : t;
             return (
               <span key={k} className={cls}>
                 {show}
@@ -243,8 +267,13 @@ function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: 
           spellCheck={false}
           aria-label="在这里输入"
         />
+        {hidden && (
+          <button className="btn btn-ghost typing-hint" onClick={hint}>
+            <Lightbulb size={16} /> 提示一个字母
+          </button>
+        )}
         <p className="muted typing-help">
-          {mode === "dictation" ? "听不清可以点「再听一遍」。" : "直接开始输入，全部正确后自动进入下一项。"} 第 {i + 1}/{entries.length} 项
+          {mode === "dictation" ? "听不清可以点「再听一遍」。" : hidden ? "想不起来可以点「提示」。全部正确后自动进入下一项。" : "直接开始输入，全部正确后自动进入下一项。"} 第 {i + 1}/{entries.length} 项
         </p>
       </section>
     </div>
