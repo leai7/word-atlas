@@ -1,6 +1,6 @@
-import { ArrowRight, Lightbulb } from "lucide-react";
+import { ArrowRight, Lightbulb, PenLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useAtlas } from "../atlas/context";
+import { useAtlas, useEntry } from "../atlas/context";
 import { play, stopAudio } from "../lib/audio";
 import { burst } from "../lib/burst";
 import { splitPair } from "../lib/text";
@@ -8,6 +8,7 @@ import { cue } from "../lib/sound";
 import { normalizeAnswer } from "../store/chunks";
 import { advance, answerChunk, gradeFor } from "../store/session";
 import { useStore, type ActiveSession, type Step } from "../store/store";
+import { Composer } from "../ui/Sentences";
 
 /** Your own sentence with the chunk blanked out; type the chunk back. */
 export function ChunkQuiz({ step, session }: { step: Step & { kind: "chunk" }; session: ActiveSession }) {
@@ -17,6 +18,8 @@ export function ChunkQuiz({ step, session }: { step: Step & { kind: "chunk" }; s
   const pending = session.pending;
   const [value, setValue] = useState("");
   const [hints, setHints] = useState(0);
+  const [rewriting, setRewriting] = useState(false);
+  const { entry } = useEntry(sentence?.wordId);
   const started = useRef(performance.now());
   const input = useRef<HTMLInputElement>(null);
   const nextBtn = useRef<HTMLButtonElement>(null);
@@ -141,10 +144,22 @@ export function ChunkQuiz({ step, session }: { step: Step & { kind: "chunk" }; s
                 <span lang="en">{chunk.en}</span> {chunk.zh}
               </p>
             </div>
-            <button ref={nextBtn} className={`btn btn-xl ${pending.correct ? "btn-sage" : "btn-terra"}`} onClick={next}>
-              继续 <ArrowRight size={20} />
-            </button>
+            <div className="chunk-next">
+              {entry && !rewriting && (
+                <button className="btn btn-ghost" onClick={() => setRewriting(true)} title="同一个搭配换一句新句子，复习排程不变">
+                  <PenLine size={16} /> 换个句子
+                </button>
+              )}
+              <button ref={nextBtn} className={`btn btn-xl ${pending.correct ? "btn-sage" : "btn-terra"}`} onClick={next}>
+                继续 <ArrowRight size={20} />
+              </button>
+            </div>
           </div>
+          {rewriting && entry && (
+            <div className="chunk-rewrite">
+              <Composer entry={entry} compose={{ chunk: sentence.chunk, id: sentence.id, fresh: true }} onClose={() => setRewriting(false)} />
+            </div>
+          )}
         </div>
       )}
     </div>

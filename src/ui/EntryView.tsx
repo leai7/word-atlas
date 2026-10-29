@@ -166,7 +166,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
                   <li key={c}>
                     <span lang="en">{en}</span>
                     {zh && <small>{zh}</small>}
-                    {mode === "detail" && (
+                    {mode !== "reveal" && (
                       <button className="col-write" onClick={() => setCompose({ chunk: c })} aria-label={`用 ${en} 造句`} title="用这个搭配造句">
                         <PenLine size={14} /> 造句
                       </button>
@@ -178,7 +178,8 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
           </section>
         )}
 
-        {mode === "detail" && <WordSentences entry={entry} compose={compose} setCompose={setCompose} />}
+        {/* Sentences can be written on the word page and while meeting a word for the first time. */}
+        {mode !== "reveal" && <WordSentences entry={entry} compose={compose} setCompose={setCompose} />}
 
         {(famLinks.length > 0 || entry.syn.length > 0 || entry.ant.length > 0) && (
           <section className="block relations">

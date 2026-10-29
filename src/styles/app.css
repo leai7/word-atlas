@@ -4576,3 +4576,18 @@ a:hover .mark-needle,
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+
+.chunk-next {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.chunk-rewrite {
+  padding: 0 18px 18px;
+  background: var(--card);
+  text-align: left;
+}
+.chunk-rewrite .sentence-form {
+  margin: 0;
+}

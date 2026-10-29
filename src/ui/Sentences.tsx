@@ -7,16 +7,17 @@ import { formatInterval } from "../store/srs";
 import { removeSentence, saveSentence, useStore } from "../store/store";
 
 /** Which collocation is being written about, and the sentence being edited if any. */
-export type Compose = { chunk: string; id?: string } | null;
+export type Compose = { chunk: string; id?: string; /** Rewrite: start from an empty sentence. */ fresh?: boolean } | null;
 
-function Composer({ entry, compose, onClose }: { entry: Entry; compose: NonNullable<Compose>; onClose: () => void }) {
+export function Composer({ entry, compose, onClose }: { entry: Entry; compose: NonNullable<Compose>; onClose: () => void }) {
   const editing = useStore((s) => (compose.id ? s.progress.sentences.find((x) => x.id === compose.id) : undefined));
   const chunk = splitPair(compose.chunk);
-  const [text, setText] = useState(editing?.text ?? "");
-  const [blank, setBlank] = useState(editing?.blank ?? "");
-  const [zh, setZh] = useState(editing?.zh ?? "");
+  const keep = editing && !compose.fresh;
+  const [text, setText] = useState(keep ? editing.text : "");
+  const [blank, setBlank] = useState(keep ? editing.blank : "");
+  const [zh, setZh] = useState(keep ? editing.zh : "");
   /** Once the learner edits the blank by hand, stop guessing it. */
-  const [manual, setManual] = useState(!!editing);
+  const [manual, setManual] = useState(!!keep);
 
   useEffect(() => {
     if (!manual) setBlank(guessBlank(text, chunk.en, entry.w));
