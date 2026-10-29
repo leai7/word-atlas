@@ -49,7 +49,7 @@ export function Today() {
   const today = progress.days[dayKey()];
   const streak = streakOf(progress.days);
   const active = progress.session && !progress.session.finished ? progress.session : null;
-  const total = plan.due.length + plan.fresh.length;
+  const total = plan.due.length + plan.chunks.length + plan.fresh.length;
   const limit = dailyLimit(atlas, progress, settings);
   const exam = useMemo(() => examPlan(atlas, progress, settings), [atlas, progress, settings]);
   const goal = limit + Math.min(plan.due.length, 60);
@@ -105,17 +105,20 @@ export function Today() {
             <>
               <p className="eyebrow eyebrow-light">今日旅程</p>
               <h2>
-                {plan.due.length > 0 && (
-                  <>
-                    复习 <b>{plan.due.length}</b>
-                  </>
-                )}
-                {plan.due.length > 0 && plan.fresh.length > 0 && <i> · </i>}
-                {plan.fresh.length > 0 && (
-                  <>
-                    新词 <b>{plan.fresh.length}</b>
-                  </>
-                )}
+                {(
+                  [
+                    ["复习", plan.due.length],
+                    ["造句", plan.chunks.length],
+                    ["新词", plan.fresh.length],
+                  ] as const
+                )
+                  .filter(([, n]) => n > 0)
+                  .map(([label, n], i) => (
+                    <span key={label}>
+                      {i > 0 && <i> · </i>}
+                      {label} <b>{n}</b>
+                    </span>
+                  ))}
               </h2>
               <p className="journey-lede">
                 约 {plan.minutes} 分钟。先温故，再知新。{plan.picked > 0 && `新词里有 ${plan.picked} 个是你指定的。`}
@@ -146,7 +149,7 @@ export function Today() {
                 再认识 5 个新词 <Sparkles size={18} />
               </button>
             )}
-            {!active && plan.due.length > 0 && plan.fresh.length > 0 && (
+            {!active && plan.due.length + plan.chunks.length > 0 && plan.fresh.length > 0 && (
               <button className="btn btn-glass" onClick={() => start({ reviewOnly: true })}>
                 只复习
               </button>

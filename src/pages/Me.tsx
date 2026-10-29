@@ -7,6 +7,7 @@ import { dayKey, exportBackup, importBackup, resetProgress, store, useStore, typ
 import { toast } from "../ui/Toast";
 import { exportPictures, importPictures } from "../atlas/custom";
 import { CustomWords } from "./CustomWords";
+import { MySentences } from "./MySentences";
 import { streakOf } from "./Today";
 
 export function Me({ privateAvailable }: { privateAvailable: boolean }) {
@@ -115,6 +116,7 @@ export function Me({ privateAvailable }: { privateAvailable: boolean }) {
         </section>
 
         <CustomWords />
+        <MySentences />
 
         <section className="panel settings">
           <h3 className="eyebrow">学习设置</h3>

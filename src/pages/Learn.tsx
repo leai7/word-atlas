@@ -15,6 +15,7 @@ import { Illustration } from "../ui/Illustration";
 import { Galaxy } from "../galaxy/Galaxy";
 import { AmbiencePicker } from "../ui/Ambience";
 import { Ring } from "../ui/Ring";
+import { ChunkQuiz } from "./ChunkQuiz";
 import { Speak } from "../ui/Speak";
 import { shareSession } from "../ui/shareSession";
 
@@ -77,7 +78,7 @@ function Runner({ session }: { session: ActiveSession }) {
         <AmbiencePicker />
       </header>
       <main className="learn-stage" key={`${session.id}-${session.index}`}>
-        {step.kind === "intro" ? <Intro step={step} /> : <Quiz step={step as Step & { kind: QuizKind }} session={session} />}
+        {step.kind === "intro" ? <Intro step={step} /> : step.kind === "chunk" ? <ChunkQuiz step={step} session={session} /> : <Quiz step={step} session={session} />}
       </main>
     </div>
   );
@@ -409,6 +410,12 @@ function Summary({ session }: { session: ActiveSession }) {
               <dt>复习</dt>
               <dd>{session.reviewIds.length}</dd>
             </div>
+            {!!session.chunkIds?.length && (
+              <div>
+                <dt>造句</dt>
+                <dd>{session.chunkIds.length}</dd>
+              </div>
+            )}
             <div>
               <dt>用时</dt>
               <dd>

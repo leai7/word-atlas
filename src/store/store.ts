@@ -1,10 +1,12 @@
 import { useSyncExternalStore } from "react";
 import { sanitizeCustom, type CustomWord } from "../atlas/custom";
 import type { Accent } from "../atlas/types";
+import { sanitizeSentences, type Sentence } from "./chunks";
 import type { CardState, Grade } from "./srs";
 
 export type QuizKind = "meaning" | "picture" | "listen" | "spell";
-export type Step = { id: string; kind: "intro" } | { id: string; kind: QuizKind; retry?: boolean; options?: string[] };
+/** A "chunk" step reviews one of the learner's own sentences; its id is the sentence id. */
+export type Step = { id: string; kind: "intro" } | { id: string; kind: "chunk"; retry?: boolean } | { id: string; kind: QuizKind; retry?: boolean; options?: string[] };
 
 export interface ActiveSession {
   id: string;
@@ -15,6 +17,8 @@ export interface ActiveSession {
   graded: Record<string, Grade>;
   newIds: string[];
   reviewIds: string[];
+  /** Sentences reviewed in this journey (absent in journeys saved before sentences existed). */
+  chunkIds?: string[];
   /** Answer shown but not yet continued; survives reload without double counting. */
   pending?: { correct: boolean; value: string };
   finished?: number;
@@ -51,6 +55,8 @@ export interface Progress {
   known: string[];
   /** Words the learner added to the atlas. */
   custom: CustomWord[];
+  /** Sentences the learner wrote around collocations, each with its own review schedule. */
+  sentences: Sentence[];
 }
 
 export interface Settings {
@@ -108,6 +114,7 @@ export const emptyProgress = (datasetId: string): Progress => ({
   queue: [],
   known: [],
   custom: [],
+  sentences: [],
 });
 
 export const dayKey = (d = new Date()) =>
@@ -161,6 +168,7 @@ export function sanitizeProgress(v: unknown, datasetId: string): Progress {
   if (isObj(v.cards)) for (const [k, c] of Object.entries(v.cards)) if (validCard(c)) out.cards[k] = c;
   if (Array.isArray(v.bookmarks)) out.bookmarks = v.bookmarks.filter((x): x is string => typeof x === "string").slice(0, 20000);
   out.custom = sanitizeCustom(v.custom);
+  out.sentences = sanitizeSentences(v.sentences, validCard);
   if (Array.isArray(v.known)) out.known = [...new Set(v.known.filter((x): x is string => typeof x === "string"))].slice(0, 20000);
   if (Array.isArray(v.queue)) out.queue = [...new Set(v.queue.filter((x): x is string => typeof x === "string"))].slice(0, 2000);
   if (Array.isArray(v.mistakes)) out.mistakes = v.mistakes.filter((x): x is string => typeof x === "string").slice(0, 300);
@@ -329,13 +337,26 @@ export function saveCustom(word: CustomWord) {
   });
 }
 
+/** Add a sentence, or change its text; an edit keeps the review schedule. */
+export function saveSentence(s: Sentence) {
+  store.progress((p) => {
+    const old = p.sentences.find((x) => x.id === s.id);
+    const next = old ? { ...old, text: s.text, blank: s.blank, zh: s.zh } : s;
+    return { ...p, sentences: old ? p.sentences.map((x) => (x.id === s.id ? next : x)) : [...p.sentences, next] };
+  });
+}
+
+export function removeSentence(id: string) {
+  store.progress((p) => ({ ...p, sentences: p.sentences.filter((s) => s.id !== id) }));
+}
+
 /** Remove a custom word and everything learned about it. */
 export function removeCustom(id: string) {
   store.progress((p) => {
     const cards = { ...p.cards };
     delete cards[id];
     const drop = (xs: string[]) => xs.filter((x) => x !== id);
-    return { ...p, cards, custom: p.custom.filter((c) => c.id !== id), queue: drop(p.queue), known: drop(p.known), bookmarks: drop(p.bookmarks), mistakes: drop(p.mistakes) };
+    return { ...p, cards, custom: p.custom.filter((c) => c.id !== id), sentences: p.sentences.filter((s) => s.wordId !== id), queue: drop(p.queue), known: drop(p.known), bookmarks: drop(p.bookmarks), mistakes: drop(p.mistakes) };
   });
 }
 

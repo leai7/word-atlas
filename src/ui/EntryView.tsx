@@ -1,4 +1,5 @@
-import { Bookmark, BookmarkCheck, CircleCheck, Lightbulb, ListChecks, ListPlus, Share2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, CircleCheck, Lightbulb, ListChecks, ListPlus, PenLine, Share2 } from "lucide-react";
+import { useState } from "react";
 import type { Entry, WordRef } from "../atlas/types";
 import { useAtlas } from "../atlas/context";
 import { isCustom } from "../atlas/custom";
@@ -7,6 +8,7 @@ import { formatInterval, isMastered } from "../store/srs";
 import { pickWords, skipKnown } from "../store/session";
 import { dequeue, toggleBookmark, unmarkKnown, useStore } from "../store/store";
 import { Illustration } from "./Illustration";
+import { WordSentences, type Compose } from "./Sentences";
 import { Speak } from "./Speak";
 import { shareWord } from "./share";
 import { openWord } from "../lib/router";
@@ -58,6 +60,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
   const saved = useStore((s) => s.progress.bookmarks.includes(entry.id));
   const queued = useStore((s) => s.progress.queue.includes(entry.id));
   const known = useStore((s) => s.progress.known.includes(entry.id));
+  const [compose, setCompose] = useState<Compose>(null);
   const accent = useStore((s) => s.settings.accent);
   const topicIdx = atlas.topics.findIndex((t) => t[0] === entry.topic);
   const topic = atlas.topics[topicIdx];
@@ -163,12 +166,19 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
                   <li key={c}>
                     <span lang="en">{en}</span>
                     {zh && <small>{zh}</small>}
+                    {mode === "detail" && (
+                      <button className="col-write" onClick={() => setCompose({ chunk: c })} aria-label={`用 ${en} 造句`} title="用这个搭配造句">
+                        <PenLine size={14} /> 造句
+                      </button>
+                    )}
                   </li>
                 );
               })}
             </ul>
           </section>
         )}
+
+        {mode === "detail" && <WordSentences entry={entry} compose={compose} setCompose={setCompose} />}
 
         {(famLinks.length > 0 || entry.syn.length > 0 || entry.ant.length > 0) && (
           <section className="block relations">

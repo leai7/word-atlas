@@ -2,6 +2,7 @@ import type { Atlas, WordRef } from "../atlas/types";
 import { MEDIA } from "../atlas/types";
 import { hashSeed, normalize, shuffle } from "../lib/text";
 import { isMastered, review, Rating, type Grade } from "./srs";
+import { dueSentences } from "./chunks";
 import { bumpDay, dayKey, store, type ActiveSession, type Progress, type QuizKind, type Settings, type Step } from "./store";
 
 export function dueIds(p: Progress, now = Date.now()) {
@@ -83,7 +84,8 @@ export function todayPlan(atlas: Atlas, p: Progress, s: Settings) {
   const newLeft = Math.max(0, dailyLimit(atlas, p, s) - newToday(p));
   const fresh = nextNew(atlas, p, s, newLeft);
   const picked = fresh.filter((id) => p.queue.includes(id)).length;
-  return { due, fresh, picked, minutes: Math.max(1, Math.round(due.length * 0.25 + fresh.length * 0.9)) };
+  const chunks = dueSentences(p.sentences);
+  return { due, fresh, picked, chunks, minutes: Math.max(1, Math.round(due.length * 0.25 + chunks.length * 0.4 + fresh.length * 0.9)) };
 }
 
 /** The picture question needs both a picture and an example sentence to blank out. */
@@ -140,10 +142,12 @@ export function buildSession(atlas: Atlas, p: Progress, s: Settings, opts?: { id
   const plan = todayPlan(atlas, p, s);
   const reviewIds = opts?.ids ? opts.ids.filter((id) => p.cards[id]) : plan.due.slice(0, 120);
   const newIds = opts?.ids ? opts.ids.filter((id) => !p.cards[id]) : opts?.reviewOnly ? [] : plan.fresh;
-  // Reviews first while attention is fresh, then new words in small groups.
+  const chunkIds = opts?.ids ? [] : plan.chunks.slice(0, 40);
+  // Word reviews first while attention is fresh, then your own sentences, then new words in small groups.
   const steps: Step[] = reviewIds.map((id, i) => quizStep(atlas, p, s, id, seed + i));
+  steps.push(...shuffle(chunkIds, seed).map((id): Step => ({ id, kind: "chunk" })));
   steps.push(...newWordSteps(atlas, p, s, newIds, seed));
-  return { id: `s${seed}`, started: seed, steps, index: 0, graded: {}, newIds, reviewIds };
+  return { id: `s${seed}`, started: seed, steps, index: 0, graded: {}, newIds, reviewIds, chunkIds };
 }
 
 function quizStep(atlas: Atlas, p: Progress, s: Settings, id: string, salt: number): Step {
@@ -295,3 +299,30 @@ export function sessionStats(s: ActiveSession) {
 }
 
 export const masteredCount = (p: Progress) => Object.values(p.cards).filter(isMastered).length;
+
+/** Grade a sentence review. Like words, only the first attempt counts; a miss comes back a few steps later. */
+export function answerChunk(step: Step & { kind: "chunk" }, correct: boolean, grade: Grade, value: string) {
+  const { settings } = store.get();
+  store.progress((p) => {
+    const sess = p.session;
+    if (!sess) return p;
+    let next: Progress = { ...p, session: { ...sess, pending: { correct, value } } };
+    if (!(step.id in sess.graded) && !step.retry) {
+      const now = Date.now();
+      next = {
+        ...next,
+        sentences: next.sentences.map((x) => (x.id === step.id ? { ...x, card: review(x.card ?? undefined, grade, now, settings.retention) } : x)),
+        session: { ...next.session!, graded: { ...sess.graded, [step.id]: grade } },
+      };
+      next = bumpDay(next, { r: 1, c: correct ? 1 : 0 });
+    }
+    if (!correct) {
+      const steps = [...next.session!.steps];
+      if (steps.filter((x) => x.id === step.id && "retry" in x && x.retry).length < 2) {
+        steps.splice(Math.min(steps.length, sess.index + 4), 0, { id: step.id, kind: "chunk", retry: true });
+        next = { ...next, session: { ...next.session!, steps } };
+      }
+    }
+    return next;
+  });
+}

@@ -4440,3 +4440,139 @@ a:hover .mark-needle,
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- my sentences (chunks) ---------- */
+
+.col-write {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--terra-ink);
+}
+.sentence-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: var(--r);
+  background: var(--paper-2);
+}
+.sentence-form label {
+  display: grid;
+  gap: 6px;
+}
+.sentence-form label > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.sentence-form input,
+.sentence-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  font-size: 16px;
+  outline: 0;
+  resize: vertical;
+}
+.sentence-form input:focus,
+.sentence-form textarea:focus {
+  border-color: var(--ink-3);
+}
+.sentence-chunk {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.sentence-chunk b {
+  font: 600 16px var(--serif);
+}
+.sentence-chunk small {
+  color: var(--ink-3);
+}
+.sentence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.sentence-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.sentence-list li:first-child {
+  border-top: 0;
+}
+.sentence-list p {
+  margin: 0;
+  font: 400 16px/1.5 var(--serif);
+}
+.sentence-list mark {
+  background: var(--mark);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.sentence-list small {
+  grid-column: 1;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+.sentence-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+}
+.chunk-prompt .cloze {
+  font: 400 clamp(20px, 3vw, 26px) / 1.6 var(--serif);
+}
+.chunk-hint {
+  margin-top: 10px;
+  color: var(--ink-2);
+}
+.chunk-answer {
+  display: grid;
+  gap: 12px;
+  width: min(560px, 100%);
+  margin: 18px auto 0;
+}
+.chunk-answer input {
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  font-size: 18px;
+  text-align: center;
+  outline: 0;
+}
+.chunk-answer input:focus {
+  border-color: var(--ink-3);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--terra) 14%, transparent);
+}
+.chunk-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+/* Sentence reviews have no picture: text takes the art column too. */
+.quiz-chunk .feedback-inner {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 760px) {
+  .quiz-chunk .feedback-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
