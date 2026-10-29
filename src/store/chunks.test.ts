@@ -6,8 +6,11 @@ test("the blank follows the chunk through inflections and fillers", () => {
   assert.equal(guessBlank("I decided to abandon the plan after it failed.", "abandon a plan", "abandon"), "abandon the plan");
   assert.equal(guessBlank("She abandoned her old plans last year.", "abandon a plan", "abandon"), "abandoned her old plans");
   assert.equal(guessBlank("We finally give up on it.", "give up sth", "give"), "give up");
-  // Irregular forms are not guessed; the learner marks the blank by hand.
-  assert.equal(guessBlank("We finally gave up on it.", "give up sth", "give"), "");
+  // Irregular forms come from the table.
+  assert.equal(guessBlank("We finally gave up on it.", "give up sth", "give"), "gave up");
+  assert.equal(guessBlank("She has taken part in many debates.", "take part in", "take"), "taken part in");
+  assert.equal(guessBlank("He went abroad last year.", "go abroad", "go"), "went abroad");
+  assert.equal(guessBlank("Their children grew up in Paris.", "grow up", "grow"), "grew up");
   // No match for the whole chunk: fall back to the headword.
   assert.equal(guessBlank("They abandoned ship.", "abandon a plan", "abandon"), "abandoned");
   assert.equal(guessBlank("Nothing here.", "abandon a plan", "abandon"), "");

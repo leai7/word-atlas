@@ -1,3 +1,4 @@
+import { irregularForms } from "./irregular";
 import type { CardState } from "./srs";
 
 /**
@@ -25,9 +26,12 @@ const FILLERS = new Set(["sth", "sb", "someone", "somebody", "something", "one's
 
 const stem = (w: string) => w.slice(0, Math.max(3, w.length - 2));
 
+/** Does a word in the sentence stand for this chunk word? Same start of spelling, or a known irregular form. */
+const matches = (word: string, key: string) => word.startsWith(stem(key)) || !!irregularForms(key)?.has(word);
+
 /**
  * Best guess for the stretch of the sentence that carries the chunk, allowing for
- * inflections ("abandon a plan" → "abandoned the plan"). Falls back to the headword alone.
+ * inflections ("abandon a plan" → "abandoned the plan", "give up" → "gave up"). Falls back to the headword alone.
  */
 export function guessBlank(text: string, chunkEn: string, headword: string) {
   const words = [...text.matchAll(/[A-Za-z][A-Za-z'-]*/g)].map((m) => ({ w: m[0].toLowerCase(), at: m.index!, end: m.index! + m[0].length }));
@@ -37,18 +41,18 @@ export function guessBlank(text: string, chunkEn: string, headword: string) {
     .map((k) => k.replace(/[^a-z'-]/g, ""))
     .filter((k) => k && !FILLERS.has(k));
   for (let i = 0; i < words.length && keys.length; i++) {
-    if (!words[i].w.startsWith(stem(keys[0]))) continue;
+    if (!matches(words[i].w, keys[0])) continue;
     let j = i;
     let k = 1;
     for (let look = i + 1; look < words.length && k < keys.length && look - j <= 4; look++) {
-      if (words[look].w.startsWith(stem(keys[k]))) {
+      if (matches(words[look].w, keys[k])) {
         j = look;
         k++;
       }
     }
     if (k === keys.length) return text.slice(words[i].at, words[j].end);
   }
-  const head = words.find((x) => x.w.startsWith(stem(headword.toLowerCase())));
+  const head = words.find((x) => matches(x.w, headword.toLowerCase()));
   return head ? text.slice(head.at, head.end) : "";
 }
 
