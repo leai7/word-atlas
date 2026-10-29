@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Atlas, WordRef } from "../atlas/types";
 import type { CardState } from "./srs";
-import { buildSession, dailyLimit, examPlan, nextNew, pickWords, REVIEW_DAYS, skipKnown, todayPlan } from "./session";
+import { answerChunk, buildSession, dailyLimit, examPlan, nextNew, pickWords, REVIEW_DAYS, skipKnown, todayPlan } from "./session";
+import type { Sentence } from "./chunks";
+import { Rating } from "./srs";
 import { defaultSettings, emptyProgress, store } from "./store";
 
 const words: WordRef[] = ["a1", "a2", "a3", "b1", "b2", "b3"].map((id, order) => ({
@@ -95,4 +97,31 @@ test("no new words in the last days before the exam", () => {
 test("learned or unknown picks are skipped", () => {
   const p = { ...emptyProgress("x"), queue: ["gone", "a1", "b2"], cards: { a1: card } };
   assert.deepEqual(nextNew(atlas, p, defaultSettings, 3), ["b2", "a2", "a3"]);
+});
+
+const sentence = (id: string, wordId: string, next: number): Sentence => ({ id, wordId, chunk: "x｜甲", text: "x y", blank: "x", zh: "", card: null, next, added: 0 });
+const dueCard: CardState = { ...card, due: 1 };
+
+test("a word with your sentence is reviewed through the sentence, once per journey", () => {
+  const p = {
+    ...emptyProgress("x"),
+    cards: { a1: dueCard, a2: dueCard },
+    sentences: [sentence("s1", "a1", 1e15), sentence("s2", "a1", 2e15), sentence("s3", "a2", 1)],
+  };
+  const plan = todayPlan(atlas, p, { ...defaultSettings, dailyNew: 0 });
+  assert.deepEqual(plan.due, []);
+  // a2's own sentence is due; a1 is due as a word, so its soonest sentence stands in.
+  assert.deepEqual(plan.chunks, ["s3", "s1"]);
+});
+
+test("answering a sentence also reviews its word", () => {
+  const settings = { ...defaultSettings, dailyNew: 0 };
+  const base = { ...emptyProgress("x"), cards: { a1: dueCard }, sentences: [sentence("s1", "a1", 1)] };
+  store.settings(settings);
+  store.progress(() => ({ ...base, session: buildSession(atlas, base, settings) }));
+  answerChunk({ id: "s1", kind: "chunk" }, false, Rating.Again, "nope");
+  const p = store.get().progress;
+  assert.ok(p.sentences[0].card);
+  assert.notEqual(p.cards.a1.due, 1);
+  assert.deepEqual(p.mistakes, ["a1"]);
 });

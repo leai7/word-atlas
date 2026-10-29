@@ -2,7 +2,7 @@ import type { Atlas, WordRef } from "../atlas/types";
 import { MEDIA } from "../atlas/types";
 import { hashSeed, normalize, shuffle } from "../lib/text";
 import { isMastered, review, Rating, type Grade } from "./srs";
-import { dueSentences } from "./chunks";
+import { dueSentences, sentenceDue, type Sentence } from "./chunks";
 import { bumpDay, dayKey, store, type ActiveSession, type Progress, type QuizKind, type Settings, type Step } from "./store";
 
 export function dueIds(p: Progress, now = Date.now()) {
@@ -79,12 +79,34 @@ export function dailyLimit(atlas: Atlas, p: Progress, s: Settings) {
   return plan && plan.left >= 0 ? plan.daily : s.dailyNew;
 }
 
+/**
+ * Reviews for today. A word you wrote sentences for is reviewed through one of them
+ * instead of a word question, and each word comes up at most once a journey.
+ */
 export function todayPlan(atlas: Atlas, p: Progress, s: Settings) {
-  const due = dueIds(p).filter((id) => atlas.byId.has(id));
   const newLeft = Math.max(0, dailyLimit(atlas, p, s) - newToday(p));
   const fresh = nextNew(atlas, p, s, newLeft);
   const picked = fresh.filter((id) => p.queue.includes(id)).length;
-  const chunks = dueSentences(p.sentences);
+  const byWord = new Map<string, Sentence[]>();
+  for (const x of p.sentences) if (atlas.byId.has(x.wordId)) byWord.set(x.wordId, [...(byWord.get(x.wordId) ?? []), x]);
+  const used = new Set(fresh); // words met as new today are not also reviewed
+  const chunks: string[] = [];
+  const take = (x: Sentence) => {
+    chunks.push(x.id);
+    used.add(x.wordId);
+  };
+  const sentenceById = new Map(p.sentences.map((x) => [x.id, x]));
+  for (const id of dueSentences(p.sentences)) {
+    const x = sentenceById.get(id)!;
+    if (atlas.byId.has(x.wordId) && !used.has(x.wordId)) take(x);
+  }
+  const due: string[] = [];
+  for (const id of dueIds(p)) {
+    if (!atlas.byId.has(id) || used.has(id)) continue;
+    const mine = byWord.get(id);
+    if (mine) take(mine.reduce((a, b) => (sentenceDue(b) < sentenceDue(a) ? b : a)));
+    else due.push(id);
+  }
   return { due, fresh, picked, chunks, minutes: Math.max(1, Math.round(due.length * 0.25 + chunks.length * 0.4 + fresh.length * 0.9)) };
 }
 
@@ -300,7 +322,10 @@ export function sessionStats(s: ActiveSession) {
 
 export const masteredCount = (p: Progress) => Object.values(p.cards).filter(isMastered).length;
 
-/** Grade a sentence review. Like words, only the first attempt counts; a miss comes back a few steps later. */
+/**
+ * Grade a sentence review. It also counts as a review of its word.
+ * Like words, only the first attempt counts; a miss comes back a few steps later.
+ */
 export function answerChunk(step: Step & { kind: "chunk" }, correct: boolean, grade: Grade, value: string) {
   const { settings } = store.get();
   store.progress((p) => {
@@ -309,9 +334,13 @@ export function answerChunk(step: Step & { kind: "chunk" }, correct: boolean, gr
     let next: Progress = { ...p, session: { ...sess, pending: { correct, value } } };
     if (!(step.id in sess.graded) && !step.retry) {
       const now = Date.now();
+      const wordId = p.sentences.find((x) => x.id === step.id)?.wordId;
+      const word = wordId ? p.cards[wordId] : undefined;
       next = {
         ...next,
         sentences: next.sentences.map((x) => (x.id === step.id ? { ...x, card: review(x.card ?? undefined, grade, now, settings.retention) } : x)),
+        cards: word && wordId ? { ...next.cards, [wordId]: review(word, grade, now, settings.retention) } : next.cards,
+        mistakes: correct || !wordId ? next.mistakes : [wordId, ...next.mistakes.filter((x) => x !== wordId)].slice(0, 300),
         session: { ...next.session!, graded: { ...sess.graded, [step.id]: grade } },
       };
       next = bumpDay(next, { r: 1, c: correct ? 1 : 0 });
