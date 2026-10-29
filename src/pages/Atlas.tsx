@@ -1,3 +1,4 @@
+import { isCustom } from "../atlas/custom";
 import { Grid3x3, List, Search, Sparkles, X } from "lucide-react";
 import { Galaxy } from "../galaxy/Galaxy";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -77,7 +78,7 @@ export function AtlasPage({
     const saved = new Set(bookmarks);
     const ti = topic ? atlas.topics.findIndex((t) => t[0] === topic) : -1;
     const li = level ? atlas.cefr.indexOf(level) : -1;
-    const base = q.trim() ? searchAtlas(atlas, q, 5000) : atlas.words;
+    const base = q.trim() ? searchAtlas(atlas, q, 5000) : [...atlas.words, ...atlas.custom];
     return base.filter((w) => {
       if (ti >= 0 && w.topic !== ti) return false;
       if (li >= 0 && w.cefr !== li) return false;
@@ -337,7 +338,7 @@ function VirtualGrid({
               topic={w.topic}
             />
             <span className="tile-no">
-              № {String(w.order + 1).padStart(4, "0")}
+              {isCustom(w.id) ? "自订" : `№ ${String(w.order + 1).padStart(4, "0")}`}
             </span>
             <span className="tile-text">
               <span className="tile-word" lang="en">

@@ -60,6 +60,8 @@ export interface Atlas {
   topics: [string, string][];
   cefr: string[];
   words: WordRef[];
+  /** Words the learner added; not part of the learning path or the galaxy. */
+  custom: WordRef[];
   byId: Map<string, WordRef>;
   /** Loads full entries; chunked for the open atlas, in-memory for private sets. */
   entry: (id: string) => Promise<Entry>;

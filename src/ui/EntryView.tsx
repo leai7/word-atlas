@@ -1,6 +1,7 @@
 import { Bookmark, BookmarkCheck, CircleCheck, Lightbulb, ListChecks, ListPlus, Share2 } from "lucide-react";
 import type { Entry, WordRef } from "../atlas/types";
 import { useAtlas } from "../atlas/context";
+import { isCustom } from "../atlas/custom";
 import { splitHighlight, splitPair } from "../lib/text";
 import { formatInterval, isMastered } from "../store/srs";
 import { pickWords, skipKnown } from "../store/session";
@@ -29,7 +30,6 @@ export function Pronounce({ entry, refw }: { entry: Entry; refw: WordRef | Entry
   const items: ["uk" | "us", string, string][] = both
     ? [["uk", "英", entry.uk], ["us", "美", entry.us]]
     : [[accent, accent === "uk" ? "英" : "美", entry.uk || entry.us]];
-  if (!both && items[0][2] === "") return null;
   return (
     <div className="pron">
       {(accent === "us" ? [...items].reverse() : items).map(([acc, label, ipa]) => (
@@ -42,7 +42,7 @@ export function Pronounce({ entry, refw }: { entry: Entry; refw: WordRef | Entry
           label={
             <>
               <em>{label}</em>
-              <span className="ipa">{ipa}</span>
+              {ipa && <span className="ipa">{ipa}</span>}
             </>
           }
         />
@@ -79,6 +79,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
           <div className="entry-tags">
             <span className={`chip chip-level lv-${entry.cefr}`}>{entry.cefr}</span>
             {topic && <span className="chip">{topic[1]}</span>}
+            {isCustom(entry.id) && <span className="chip">自订</span>}
             {status && <span className={`chip chip-status ${status === "已掌握" ? "is-done" : ""}`}>{status}</span>}
           </div>
           {mode === "detail" && (
@@ -108,7 +109,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
             </div>
           )}
         </header>
-        {ref && (
+        {ref && !isCustom(ref.id) && (
           <p className="specimen">
             № {String(ref.order + 1).padStart(4, "0")}
             <i />

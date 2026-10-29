@@ -370,7 +370,7 @@ function QueuePanel() {
   const [note, setNote] = useState<{ added: number; today: number; learned: string[]; missing: string[] } | null>(null);
   const byWord = useMemo(() => {
     const m = new Map<string, string>();
-    for (const w of atlas.words) if (!m.has(w.word.toLowerCase())) m.set(w.word.toLowerCase(), w.id);
+    for (const w of [...atlas.words, ...atlas.custom]) if (!m.has(w.word.toLowerCase())) m.set(w.word.toLowerCase(), w.id);
     return m;
   }, [atlas]);
   // New words still ahead today: the unseen part of a journey in progress, or the next journey's plan.
@@ -450,7 +450,7 @@ function QueuePanel() {
             {note.added > note.today && `其余 ${note.added - note.today} 个超出今天的名额（或今天的名额已学完），排到之后几天。`}
           </p>
           {note.learned.length > 0 && <p>已经学过，不再加入：{note.learned.join("、")}</p>}
-          {note.missing.length > 0 && <p className="is-warn">词库里没有：{note.missing.join("、")}</p>}
+          {note.missing.length > 0 && <p className="is-warn">词库里没有：{note.missing.join("、")}。可以在「我的 → 自订单词」自己新增。</p>}
         </div>
       )}
       {ahead.length > 0 ? (

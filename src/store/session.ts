@@ -86,9 +86,12 @@ export function todayPlan(atlas: Atlas, p: Progress, s: Settings) {
   return { due, fresh, picked, minutes: Math.max(1, Math.round(due.length * 0.25 + fresh.length * 0.9)) };
 }
 
+/** The picture question needs both a picture and an example sentence to blank out. */
+const canPicture = (ref: WordRef) => !!(ref.media & MEDIA.img) && !!(ref.media & MEDIA.ex);
+
 function quizKind(ref: WordRef, p: Progress, s: Settings, salt: number): QuizKind {
   const c = p.cards[ref.id];
-  const hasImg = !!(ref.media & MEDIA.img);
+  const hasImg = canPicture(ref);
   const roll = hashSeed(ref.id + salt) % 100;
   if (!c || c.s < 2) {
     if (hasImg && roll < 45) return "picture";
@@ -263,7 +266,7 @@ export function answer(atlas: Atlas, step: Step & { kind: QuizKind }, correct: b
       const retries = steps.filter((x) => x.id === step.id && "retry" in x && x.retry).length;
       if (retries < 2) {
         const ref = atlas.byId.get(step.id)!;
-        const kind: QuizKind = step.kind === "meaning" ? (ref.media & MEDIA.img ? "picture" : "listen") : "meaning";
+        const kind: QuizKind = step.kind === "meaning" ? (canPicture(ref) ? "picture" : "listen") : "meaning";
         const at = Math.min(steps.length, sess.index + 4);
         steps.splice(at, 0, { id: step.id, kind, retry: true, options: distractors(atlas, ref, kind, Date.now()) });
         next = { ...next, session: { ...next.session!, steps } };

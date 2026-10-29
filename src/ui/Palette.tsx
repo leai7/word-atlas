@@ -10,7 +10,7 @@ export function searchAtlas(atlas: Atlas, raw: string, limit = 40): WordRef[] {
   if (!q) return [];
   const zh = /[一-鿿]/.test(q);
   const hits: [number, WordRef][] = [];
-  for (const w of atlas.words) {
+  for (const w of [...atlas.words, ...atlas.custom]) {
     let score = 0;
     if (zh) {
       const i = w.zh.indexOf(q);

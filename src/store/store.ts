@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { sanitizeCustom, type CustomWord } from "../atlas/custom";
 import type { Accent } from "../atlas/types";
 import type { CardState, Grade } from "./srs";
 
@@ -48,6 +49,8 @@ export interface Progress {
   queue: string[];
   /** Words the learner already knows; never offered as new words. */
   known: string[];
+  /** Words the learner added to the atlas. */
+  custom: CustomWord[];
 }
 
 export interface Settings {
@@ -104,6 +107,7 @@ export const emptyProgress = (datasetId: string): Progress => ({
   mistakes: [],
   queue: [],
   known: [],
+  custom: [],
 });
 
 export const dayKey = (d = new Date()) =>
@@ -156,6 +160,7 @@ export function sanitizeProgress(v: unknown, datasetId: string): Progress {
   if (!isObj(v) || v.version !== 2) return out;
   if (isObj(v.cards)) for (const [k, c] of Object.entries(v.cards)) if (validCard(c)) out.cards[k] = c;
   if (Array.isArray(v.bookmarks)) out.bookmarks = v.bookmarks.filter((x): x is string => typeof x === "string").slice(0, 20000);
+  out.custom = sanitizeCustom(v.custom);
   if (Array.isArray(v.known)) out.known = [...new Set(v.known.filter((x): x is string => typeof x === "string"))].slice(0, 20000);
   if (Array.isArray(v.queue)) out.queue = [...new Set(v.queue.filter((x): x is string => typeof x === "string"))].slice(0, 2000);
   if (Array.isArray(v.mistakes)) out.mistakes = v.mistakes.filter((x): x is string => typeof x === "string").slice(0, 300);
@@ -316,23 +321,42 @@ export function dequeue(ids: string[]) {
   store.progress((p) => ({ ...p, queue: p.queue.filter((x) => !drop.has(x)) }));
 }
 
+/** Add or update one of the learner's own words. */
+export function saveCustom(word: CustomWord) {
+  store.progress((p) => {
+    const i = p.custom.findIndex((c) => c.id === word.id);
+    return { ...p, custom: i < 0 ? [...p.custom, word] : p.custom.map((c, k) => (k === i ? word : c)) };
+  });
+}
+
+/** Remove a custom word and everything learned about it. */
+export function removeCustom(id: string) {
+  store.progress((p) => {
+    const cards = { ...p.cards };
+    delete cards[id];
+    const drop = (xs: string[]) => xs.filter((x) => x !== id);
+    return { ...p, cards, custom: p.custom.filter((c) => c.id !== id), queue: drop(p.queue), known: drop(p.known), bookmarks: drop(p.bookmarks), mistakes: drop(p.mistakes) };
+  });
+}
+
 export function unmarkKnown(id: string) {
   store.progress((p) => ({ ...p, known: p.known.filter((x) => x !== id) }));
 }
 
 /* ---------- backup ---------- */
 
-export function exportBackup() {
+/** `media` carries the pictures of custom words as data URLs. */
+export function exportBackup(media: Record<string, string> = {}) {
   flush();
   const { progress, settings } = state;
-  return JSON.stringify({ app: "word-atlas", version: 2, exported: new Date().toISOString(), progress: { ...progress, session: null }, settings }, null, 1);
+  return JSON.stringify({ app: "word-atlas", version: 2, exported: new Date().toISOString(), progress: { ...progress, session: null }, settings, media }, null, 1);
 }
 
 function markDirty() {
   dirty = true;
 }
 
-export function importBackup(text: string): { ok: true; cards: number } | { ok: false; error: string } {
+export function importBackup(text: string): { ok: true; cards: number; media: unknown } | { ok: false; error: string } {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -348,7 +372,7 @@ export function importBackup(text: string): { ok: true; cards: number } | { ok: 
   emit();
   markDirty();
   flush();
-  return { ok: true, cards: Object.keys(progress.cards).length };
+  return { ok: true, cards: Object.keys(progress.cards).length, media: data.media };
 }
 
 export function resetProgress() {

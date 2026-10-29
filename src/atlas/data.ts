@@ -63,6 +63,7 @@ export async function loadOpenAtlas(): Promise<Atlas> {
     cefr: idx.cefr,
     words,
     byId,
+    custom: [],
     peek: (id) => cache.get(id),
     async entry(id) {
       const hit = cache.get(id);
@@ -158,6 +159,7 @@ export async function loadPrivateAtlas(open: Atlas | null): Promise<Atlas | null
     cefr: open?.cefr ?? ["A1", "A2", "B1", "B2", "C1", "C2"],
     words,
     byId,
+    custom: [],
     peek: (id) => entries.get(id),
     entry: async (id) => {
       const e = entries.get(id);

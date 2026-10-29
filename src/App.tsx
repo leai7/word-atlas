@@ -1,6 +1,7 @@
 import { BookOpen, ChevronLeft, ChevronRight, Compass, Github, Keyboard, Moon, Search, Sun, User } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AtlasContext, useAtlas, useEntry } from "./atlas/context";
+import { loadPictures, usePictures, withCustom } from "./atlas/custom";
 import { loadOpenAtlas, loadPrivateAtlas } from "./atlas/data";
 import type { Atlas } from "./atlas/types";
 import { REPO_URL } from "./config";
@@ -47,7 +48,11 @@ export default function App() {
   const [priv, setPriv] = useState<Atlas | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dataset = useStore((s) => s.settings.dataset);
+  const custom = useStore((s) => s.progress.custom);
+  const pictures = usePictures();
+  const merged = useMemo(() => atlas && withCustom(atlas, custom, pictures), [atlas, custom, pictures]);
   useTheme();
+  useEffect(() => void loadPictures(), []);
 
   useEffect(() => {
     loadOpenAtlas().then(
@@ -77,7 +82,7 @@ export default function App() {
         </button>
       </div>
     );
-  if (!atlas)
+  if (!merged)
     return (
       <div className="boot" aria-busy="true">
         <Logo />
@@ -85,7 +90,7 @@ export default function App() {
       </div>
     );
   return (
-    <AtlasContext.Provider value={atlas}>
+    <AtlasContext.Provider value={merged}>
       <Shell privateAvailable={!!priv} />
     </AtlasContext.Provider>
   );
@@ -206,7 +211,8 @@ function WordSheet({ id }: { id: string | null }) {
   const neighbor = useCallback(
     (d: number) => {
       if (!ref) return;
-      const n = atlas.words[ref.order + d];
+      // Custom words page among themselves, after the atlas.
+      const n = ref.order < atlas.words.length ? atlas.words[ref.order + d] : atlas.custom[ref.order - atlas.words.length + d];
       if (n) go(currentLocation().route, n.id, true);
     },
     [atlas, ref],
@@ -232,13 +238,13 @@ function WordSheet({ id }: { id: string | null }) {
       )}
       {ref && (
         <nav className="sheet-nav" aria-label="切换词条">
-          <button className="icon-btn" onClick={() => neighbor(-1)} disabled={ref.order === 0} aria-label="上一个">
+          <button className="icon-btn" onClick={() => neighbor(-1)} disabled={ref.order === 0 || ref.order === atlas.words.length} aria-label="上一个">
             <ChevronLeft size={20} />
           </button>
           <span>
-            {(ref.order + 1).toLocaleString()} / {atlas.count.toLocaleString()}
+            {ref.order < atlas.words.length ? `${(ref.order + 1).toLocaleString()} / ${atlas.count.toLocaleString()}` : `自订 ${ref.order - atlas.words.length + 1} / ${atlas.custom.length}`}
           </span>
-          <button className="icon-btn" onClick={() => neighbor(1)} disabled={ref.order >= atlas.count - 1} aria-label="下一个">
+          <button className="icon-btn" onClick={() => neighbor(1)} disabled={ref.order === atlas.count - 1 || ref.order === atlas.words.length + atlas.custom.length - 1} aria-label="下一个">
             <ChevronRight size={20} />
           </button>
         </nav>

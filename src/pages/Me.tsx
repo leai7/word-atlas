@@ -5,6 +5,8 @@ import { dailyLimit, examPlan, REVIEW_DAYS } from "../store/session";
 import { isMastered } from "../store/srs";
 import { dayKey, exportBackup, importBackup, resetProgress, store, useStore, type Settings } from "../store/store";
 import { toast } from "../ui/Toast";
+import { exportPictures, importPictures } from "../atlas/custom";
+import { CustomWords } from "./CustomWords";
 import { streakOf } from "./Today";
 
 export function Me({ privateAvailable }: { privateAvailable: boolean }) {
@@ -36,8 +38,9 @@ export function Me({ privateAvailable }: { privateAvailable: boolean }) {
   const set = (patch: Partial<Settings>) => store.settings(patch);
   const auto = settings.planAuto && !!settings.examDate;
   const limit = dailyLimit(atlas, progress, settings);
-  const download = () => {
-    const blob = new Blob([exportBackup()], { type: "application/json" });
+  const download = async () => {
+    const media = await exportPictures(progress.custom.map((c) => c.id));
+    const blob = new Blob([exportBackup(media)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `word-atlas-backup-${dayKey()}.json`;
@@ -47,6 +50,7 @@ export function Me({ privateAvailable }: { privateAvailable: boolean }) {
   const restore = async (f: File) => {
     if (f.size > 30 * 1024 * 1024) return toast("文件太大，不像是学习备份。", "warn");
     const r = importBackup(await f.text());
+    if (r.ok) await importPictures(r.media).catch(() => 0);
     toast(r.ok ? `已恢复 ${r.cards} 个词的记忆` : r.error, r.ok ? "ok" : "warn");
   };
   const maxF = Math.max(1, ...stats.forecast);
@@ -109,6 +113,8 @@ export function Me({ privateAvailable }: { privateAvailable: boolean }) {
             ))}
           </ol>
         </section>
+
+        <CustomWords />
 
         <section className="panel settings">
           <h3 className="eyebrow">学习设置</h3>

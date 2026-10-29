@@ -4304,3 +4304,139 @@ a:hover .mark-needle,
   height: 36px;
   font-size: 14px;
 }
+
+/* ---------- custom words ---------- */
+
+.custom-panel .panel-head {
+  margin-bottom: 6px;
+}
+.custom-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin: 14px 0 6px;
+  padding: 16px;
+  border-radius: var(--r);
+  background: var(--paper-2);
+}
+.custom-form label,
+.cf-picture {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.custom-form label > span,
+.cf-picture > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.custom-form input:not([type="checkbox"]),
+.custom-form select,
+.custom-form textarea {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  font-size: 16px;
+  outline: 0;
+}
+.custom-form textarea {
+  height: auto;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.custom-form input:focus,
+.custom-form select:focus,
+.custom-form textarea:focus {
+  border-color: var(--ink-3);
+}
+.cf-word,
+.cf-wide {
+  grid-column: 1 / -1;
+}
+.cf-warn {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  font-size: 13.5px;
+  color: var(--terra-ink);
+}
+.cf-picture > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cf-picture img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+}
+.cf-picture label.btn {
+  display: inline-flex;
+  cursor: pointer;
+}
+.cf-picture small {
+  color: var(--ink-3);
+}
+.cf-empty {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.custom-form .cf-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cf-check span {
+  font-weight: 500 !important;
+}
+.cf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.custom-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.custom-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.custom-list img,
+.custom-noimg {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--paper-2);
+}
+.custom-word {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  text-align: left;
+}
+.custom-word small {
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 560px) {
+  .custom-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
