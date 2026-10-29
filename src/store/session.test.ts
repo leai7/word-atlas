@@ -125,3 +125,22 @@ test("answering a sentence also reviews its word", () => {
   assert.notEqual(p.cards.a1.due, 1);
   assert.deepEqual(p.mistakes, ["a1"]);
 });
+
+const kinds = (ids = true) => store.get().progress.session!.steps.map((x) => (ids ? `${x.id}:${x.kind === "intro" ? "i" : "q"}` : x.kind));
+
+test("a word added mid-journey joins the next round instead of being asked right after its card", () => {
+  startJourney(5); // a1..b2: five intros, five recalls
+  store.progress((p) => ({ ...p, session: { ...p.session!, index: 2 } })); // a3's card is on screen
+  pickWords(atlas, ["b3"]); // no room: b2 (not met yet) gives its place to b3
+  const steps = kinds();
+  const at = steps.indexOf("b3:i");
+  // b3 is met together with b1, and recalled along with the words already met.
+  assert.deepEqual(steps.slice(0, 5), ["a1:i", "a2:i", "a3:i", "b1:i", "b3:i"]);
+  assert.ok(at >= 0 && steps.indexOf("b3:q") > steps.lastIndexOf("b1:i"));
+  assert.equal(steps.filter((x) => x.endsWith(":q")).length, 5);
+});
+
+test("a last group of one or two joins the group before", () => {
+  startJourney(6);
+  assert.deepEqual(kinds(false).slice(0, 6), ["intro", "intro", "intro", "intro", "intro", "intro"]);
+});

@@ -178,14 +178,27 @@ function quizStep(atlas: Atlas, p: Progress, s: Settings, id: string, salt: numb
   return { id, kind, options: kind === "spell" ? undefined : distractors(atlas, ref, kind, salt) };
 }
 
-/** Meet five, then recall those five in a different order. */
-function newWordSteps(atlas: Atlas, p: Progress, s: Settings, ids: string[], seed: number) {
+/** Groups of five; a last group of one or two joins the one before, so no word is asked right after meeting it alone. */
+function groupsOfFive(ids: string[]) {
+  const out: string[][] = [];
+  for (let g = 0; g < ids.length; g += 5) out.push(ids.slice(g, g + 5));
+  if (out.length > 1 && out[out.length - 1].length <= 2) out[out.length - 2].push(...out.pop()!);
+  return out;
+}
+
+/**
+ * Meet five, then recall those five in a different order.
+ * `carry` are words already met whose recall is still ahead; they join the first recall round.
+ */
+function newWordSteps(atlas: Atlas, p: Progress, s: Settings, ids: string[], seed: number, carry: string[] = []) {
   const steps: Step[] = [];
-  for (let g = 0; g < ids.length; g += 5) {
-    const group = ids.slice(g, g + 5);
+  const groups = groupsOfFive(ids);
+  if (!groups.length && carry.length) groups.push([]);
+  groups.forEach((group, g) => {
     group.forEach((id) => steps.push({ id, kind: "intro" }));
-    shuffle(group, seed + g).forEach((id, i) => steps.push(quizStep(atlas, p, s, id, seed + 1000 + g + i)));
-  }
+    const recall = g === 0 ? [...carry, ...group] : group;
+    shuffle(recall, seed + g).forEach((id, i) => steps.push(quizStep(atlas, p, s, id, seed + 1000 + g * 10 + i)));
+  });
   return steps;
 }
 
@@ -203,9 +216,23 @@ function withoutWords(s: ActiveSession, ids: string[]): ActiveSession {
   return { ...s, steps, newIds: s.newIds.filter((id) => !drop.has(id)) };
 }
 
-function withWords(atlas: Atlas, p: Progress, settings: Settings, s: ActiveSession, ids: string[]): ActiveSession {
+/**
+ * Add new words to a journey in progress and regroup every new word still ahead, so the
+ * meet-five-then-recall rhythm holds instead of a lone word being asked straight after its card.
+ * `shownCurrent`: the step at `index` is on screen (so counts as done for grouping).
+ */
+function withWords(atlas: Atlas, p: Progress, settings: Settings, s: ActiveSession, ids: string[], shownCurrent = true): ActiveSession {
   if (!ids.length) return s;
-  return { ...s, newIds: [...s.newIds, ...ids], steps: [...s.steps, ...newWordSteps(atlas, p, settings, ids, Date.now())] };
+  const cut = Math.min(s.steps.length, s.index + (shownCurrent ? 1 : 0));
+  const head = s.steps.slice(0, cut);
+  const pending = s.newIds.filter((id) => !(id in s.graded));
+  const met = pending.filter((id) => head.some((x) => x.id === id && x.kind === "intro"));
+  const unmet = pending.filter((id) => !met.includes(id));
+  const regrouped = new Set(pending);
+  // Reviews, sentences and retries ahead stay as they are; first-time steps of pending new words are rebuilt.
+  const others = s.steps.slice(cut).filter((x) => !regrouped.has(x.id) || ("retry" in x && x.retry));
+  const rebuilt = newWordSteps(atlas, p, settings, [...unmet, ...ids], Date.now(), met);
+  return { ...s, newIds: [...s.newIds, ...ids], steps: [...head, ...others, ...rebuilt] };
 }
 
 const settle = (s: ActiveSession): ActiveSession => (s.index >= s.steps.length ? { ...s, pending: undefined, finished: Date.now() } : s);
@@ -255,7 +282,7 @@ export function dropNew(atlas: Atlas, id: string, known = false) {
   if (!sess || !sess.newIds.includes(id) || id in sess.graded) return;
   const rest = withoutWords(sess, [id]);
   const swap = nextNew(atlas, progress, settings, 1, [...rest.newIds, ...rest.reviewIds]);
-  store.progress((p) => ({ ...p, session: settle(withWords(atlas, progress, settings, rest, swap)) }));
+  store.progress((p) => ({ ...p, session: settle(withWords(atlas, progress, settings, rest, swap, false)) }));
 }
 
 export function gradeFor(kind: QuizKind, correct: boolean, ms: number, hinted: boolean): Grade {
