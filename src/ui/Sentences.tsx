@@ -69,6 +69,7 @@ export function Composer({ entry, compose, onClose }: { entry: Entry; compose: N
         />
       </label>
       {text.trim() && blank.trim() && !text.includes(blank.trim()) && <p className="cf-warn">挖空的部分要和句子里的文字完全一样。</p>}
+      {blank.trim() && !guessBlank(blank, entry.w, entry.w) && <p className="cf-warn">挖空的部分没有包含 {entry.w}，复习时会直接看到这个词。</p>}
       <label>
         <span>中文翻译（选填，复习时当提示）</span>
         <input value={zh} onChange={(e) => setZh(e.target.value)} maxLength={600} />

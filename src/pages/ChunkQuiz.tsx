@@ -91,7 +91,6 @@ export function ChunkQuiz({ step, session }: { step: Step & { kind: "chunk" }; s
         </p>
         <p className="chunk-hint">
           搭配：<b>{chunk.zh || "（无中文）"}</b>
-          {word && <span> · {word.word}</span>}
         </p>
         {sentence.zh && <p className="cloze-zh">{sentence.zh}</p>}
       </section>
@@ -142,6 +141,12 @@ export function ChunkQuiz({ step, session }: { step: Step & { kind: "chunk" }; s
               )}
               <p className="feedback-zh">
                 <span lang="en">{chunk.en}</span> {chunk.zh}
+                {word && (
+                  <>
+                    {" · "}
+                    <b lang="en">{word.word}</b> {word.zh}
+                  </>
+                )}
               </p>
             </div>
             <div className="chunk-next">
