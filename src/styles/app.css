@@ -4685,3 +4685,46 @@ a:hover .mark-needle,
   gap: 12px;
   margin-top: 8px;
 }
+
+/* ---------- galaxy search result ---------- */
+
+.galaxy-found {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.galaxy-ring {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #f3c66b;
+  box-shadow: 0 0 16px rgba(243, 198, 107, 0.7);
+  animation: galaxy-ring 1.6s ease-out infinite;
+}
+@keyframes galaxy-ring {
+  from {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .galaxy-ring {
+    animation: none;
+  }
+}
+.galaxy-tip.galaxy-found-tip {
+  left: 22px;
+  top: -40px;
+  pointer-events: auto;
+  max-width: 260px;
+}

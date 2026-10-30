@@ -113,6 +113,7 @@ export function AtlasPage({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && q.trim() && list[0] && openWord(list[0].id)}
             placeholder="搜索单词或中文释义"
             spellCheck={false}
             autoComplete="off"

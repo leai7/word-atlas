@@ -62,6 +62,10 @@ export function Galaxy({
   const engine = useRef<GalaxyEngine | null>(null);
   const labels = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ ref: WordRef; x: number; y: number } | null>(null);
+  /** The searched-for star: a ring and its card follow it on screen every frame. */
+  const [found, setFound] = useState<WordRef | null>(null);
+  const foundIdx = useRef<number | null>(null);
+  const foundEl = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
   const highlightSet = useMemo(() => new Set(highlight ?? []), [highlight]);
 
@@ -87,6 +91,14 @@ export function Galaxy({
     document.addEventListener("visibilitychange", vis);
     if (mode === "full") {
       eng.onFrame = () => {
+        const mark = foundEl.current;
+        const fi = foundIdx.current;
+        if (mark) {
+          const pos = layout.positions;
+          const p = fi === null ? null : eng.toScreen(pos[fi * 3], pos[fi * 3 + 1], pos[fi * 3 + 2]);
+          mark.style.opacity = p ? "1" : "0";
+          if (p) mark.style.transform = `translate(${p.x}px, ${p.y}px)`;
+        }
         const box = labels.current;
         if (!box) return;
         const kids = box.children as HTMLCollectionOf<HTMLElement>;
@@ -146,13 +158,15 @@ export function Galaxy({
   }, [ignite, highlightSet, layout]);
 
   useEffect(() => {
-    if (!focus) return;
-    const i = layout.index.get(focus);
-    if (i !== undefined) {
-      engine.current?.flyTo(i);
-      if (store.get().settings.sfx) void cue("fly");
-    }
-  }, [focus, layout]);
+    const i = focus ? layout.index.get(focus) : undefined;
+    foundIdx.current = i ?? null;
+    setFound(i !== undefined ? atlas.byId.get(focus!) ?? null : null);
+    if (i === undefined) return;
+    engine.current?.flyTo(i);
+    // On a phone the galaxy can sit below the search box: bring it into view.
+    canvas.current?.scrollIntoView({ block: "nearest", behavior: reduced() ? "auto" : "smooth" });
+    if (store.get().settings.sfx) void cue("fly");
+  }, [focus, layout, atlas]);
 
   // First visit to the full galaxy: one quiet sentence explaining what it is.
   useEffect(() => {
@@ -313,6 +327,22 @@ export function Galaxy({
           </span>
         ))}
       </div>
+      {mode === "full" && (
+        <div className="galaxy-found" ref={foundEl} style={{ opacity: 0 }} aria-live="polite">
+          {found && (
+            <>
+              <span className="galaxy-ring" aria-hidden="true" />
+              <button className="galaxy-tip galaxy-found-tip" onClick={() => openWord(found.id)}>
+                <Illustration src={atlas.img(found, "thumb")} word={found.word} topic={found.topic} />
+                <span>
+                  <b lang="en">{found.word}</b>
+                  <small>{found.zh}</small>
+                </span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {hover && (
         <button
           className="galaxy-tip"
