@@ -144,3 +144,20 @@ test("a last group of one or two joins the group before", () => {
   startJourney(6);
   assert.deepEqual(kinds(false).slice(0, 6), ["intro", "intro", "intro", "intro", "intro", "intro"]);
 });
+
+test("pronunciation shaky: on the practice list, and a right answer is regraded as Hard", async () => {
+  const { answer, markShakyPronunciation } = await import("./session");
+  const settings = { ...defaultSettings, dailyNew: 0 };
+  const base = { ...emptyProgress("x"), cards: { a1: dueCard } };
+  store.settings(settings);
+  store.progress(() => ({ ...base, session: buildSession(atlas, base, settings) }));
+  const step = store.get().progress.session!.steps[0] as Parameters<typeof answer>[1];
+  answer(atlas, step, true, Rating.Good, "a1");
+  const good = store.get().progress.cards.a1.due;
+  markShakyPronunciation("a1");
+  markShakyPronunciation("a1"); // a second press changes nothing
+  const p = store.get().progress;
+  assert.deepEqual(p.pronounce, ["a1"]);
+  assert.equal(p.session!.graded.a1, Rating.Hard);
+  assert.ok(p.cards.a1.due < good);
+});

@@ -301,8 +301,8 @@ export function answer(atlas: Atlas, step: Step & { kind: QuizKind }, correct: b
   store.progress((p) => {
     const sess = p.session;
     if (!sess) return p;
-    let next: Progress = { ...p, session: { ...sess, pending: { correct, value } } };
     const first = !(step.id in sess.graded) && !step.retry;
+    let next: Progress = { ...p, session: { ...sess, pending: { correct, value, before: first ? { card: p.cards[step.id] } : undefined } } };
     if (first) {
       next = {
         ...next,
@@ -358,10 +358,13 @@ export function answerChunk(step: Step & { kind: "chunk" }, correct: boolean, gr
   store.progress((p) => {
     const sess = p.session;
     if (!sess) return p;
-    let next: Progress = { ...p, session: { ...sess, pending: { correct, value } } };
-    if (!(step.id in sess.graded) && !step.retry) {
+    const first = !(step.id in sess.graded) && !step.retry;
+    const own = p.sentences.find((x) => x.id === step.id);
+    const before = first ? { card: own ? p.cards[own.wordId] : undefined, sentence: own?.card ?? null } : undefined;
+    let next: Progress = { ...p, session: { ...sess, pending: { correct, value, before } } };
+    if (first) {
       const now = Date.now();
-      const wordId = p.sentences.find((x) => x.id === step.id)?.wordId;
+      const wordId = own?.wordId;
       const word = wordId ? p.cards[wordId] : undefined;
       next = {
         ...next,
@@ -380,5 +383,32 @@ export function answerChunk(step: Step & { kind: "chunk" }, correct: boolean, gr
       }
     }
     return next;
+  });
+}
+
+/**
+ * "I got it right but my pronunciation is shaky": put the word on the pronunciation list and,
+ * when the answer just given was graded Good or Easy, regrade it as Hard so it comes back sooner.
+ */
+export function markShakyPronunciation(wordId: string) {
+  const { settings } = store.get();
+  store.progress((p) => {
+    let next: Progress = { ...p, pronounce: [wordId, ...p.pronounce.filter((x) => x !== wordId)].slice(0, 500) };
+    const sess = p.session;
+    const step = sess?.steps[sess.index];
+    const pending = sess?.pending;
+    if (!sess || !step || !pending || pending.shaky) return next;
+    next = { ...next, session: { ...sess, pending: { ...pending, shaky: true } } };
+    const grade = sess.graded[step.id];
+    if (!pending.correct || !pending.before || grade === undefined || grade <= Rating.Hard) return next;
+    const now = Date.now();
+    const { card, sentence } = pending.before;
+    const cards = { ...next.cards };
+    if (step.kind === "chunk") {
+      // A sentence review only touched the word if it had been learned already.
+      if (card) cards[wordId] = review(card, Rating.Hard, now, settings.retention);
+      next = { ...next, sentences: next.sentences.map((x) => (x.id === step.id ? { ...x, card: review(sentence ?? undefined, Rating.Hard, now, settings.retention) } : x)) };
+    } else cards[wordId] = review(card, Rating.Hard, now, settings.retention);
+    return { ...next, cards, session: { ...next.session!, graded: { ...sess.graded, [step.id]: Rating.Hard } } };
   });
 }

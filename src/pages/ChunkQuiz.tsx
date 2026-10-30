@@ -9,6 +9,7 @@ import { normalizeAnswer } from "../store/chunks";
 import { advance, answerChunk, gradeFor } from "../store/session";
 import { useStore, type ActiveSession, type Step } from "../store/store";
 import { Composer } from "../ui/Sentences";
+import { ShakyButton } from "../ui/ShakyButton";
 
 /** Your own sentence with the chunk blanked out; type the chunk back. */
 export function ChunkQuiz({ step, session }: { step: Step & { kind: "chunk" }; session: ActiveSession }) {
@@ -148,6 +149,7 @@ export function ChunkQuiz({ step, session }: { step: Step & { kind: "chunk" }; s
                   </>
                 )}
               </p>
+              {word && <ShakyButton wordId={word.id} shaky={!!pending.shaky} correct={pending.correct} />}
             </div>
             <div className="chunk-next">
               {entry && !rewriting && (

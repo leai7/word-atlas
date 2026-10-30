@@ -20,7 +20,14 @@ export interface ActiveSession {
   /** Sentences reviewed in this journey (absent in journeys saved before sentences existed). */
   chunkIds?: string[];
   /** Answer shown but not yet continued; survives reload without double counting. */
-  pending?: { correct: boolean; value: string };
+  pending?: {
+    correct: boolean;
+    value: string;
+    /** Memory before this first answer, so "pronunciation shaky" can regrade it as Hard. */
+    before?: { card?: CardState; sentence?: CardState | null };
+    /** "Pronunciation shaky" was pressed for this answer. */
+    shaky?: boolean;
+  };
   finished?: number;
 }
 
@@ -59,6 +66,8 @@ export interface Progress {
   sentences: Sentence[];
   /** Collocations the learner added to a word, "english｜中文", shown after the atlas's own. */
   extraCol: Record<string, string[]>;
+  /** Words whose pronunciation the learner wants to practise, newest first. */
+  pronounce: string[];
 }
 
 export interface Settings {
@@ -118,6 +127,7 @@ export const emptyProgress = (datasetId: string): Progress => ({
   custom: [],
   sentences: [],
   extraCol: {},
+  pronounce: [],
 });
 
 export const dayKey = (d = new Date()) =>
@@ -172,6 +182,7 @@ export function sanitizeProgress(v: unknown, datasetId: string): Progress {
   if (Array.isArray(v.bookmarks)) out.bookmarks = v.bookmarks.filter((x): x is string => typeof x === "string").slice(0, 20000);
   out.custom = sanitizeCustom(v.custom);
   out.sentences = sanitizeSentences(v.sentences, validCard);
+  if (Array.isArray(v.pronounce)) out.pronounce = [...new Set(v.pronounce.filter((x): x is string => typeof x === "string"))].slice(0, 500);
   if (isObj(v.extraCol))
     for (const [k, list] of Object.entries(v.extraCol))
       if (Array.isArray(list)) {
@@ -368,6 +379,10 @@ export function removeCollocation(wordId: string, col: string) {
     else delete extraCol[wordId];
     return { ...p, extraCol };
   });
+}
+
+export function removePronounce(id: string) {
+  store.progress((p) => ({ ...p, pronounce: p.pronounce.filter((x) => x !== id) }));
 }
 
 export function removeSentence(id: string) {

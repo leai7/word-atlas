@@ -1,4 +1,4 @@
-import { Headphones, Keyboard, Lightbulb, RotateCcw, Type } from "lucide-react";
+import { Headphones, Keyboard, Lightbulb, Mic, RotateCcw, Type } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { prefetch, useAtlas } from "../atlas/context";
 import type { Entry } from "../atlas/types";
@@ -9,14 +9,17 @@ import { clean, correctCharacterCount, same, typingDelta, typingMetrics } from "
 import { store, useStore } from "../store/store";
 import { AmbiencePicker } from "../ui/Ambience";
 import { Illustration } from "../ui/Illustration";
+import { ShadowRound } from "./ShadowRound";
 
-type Mode = "word" | "sentence" | "dictation";
+type Mode = "word" | "sentence" | "dictation" | "shadow";
+type TypingMode = Exclude<Mode, "shadow">;
 type Source = "recent" | "mistakes" | "saved" | "path";
 
 const MODES: [Mode, string, string, typeof Type][] = [
   ["word", "单词", "看图写出单词", Type],
   ["sentence", "例句", "看中文，默写英文例句", Keyboard],
   ["dictation", "听写", "只听声音，写下整句", Headphones],
+  ["shadow", "跟读", "听发音，跟着念", Mic],
 ];
 const SOURCES: [Source, string][] = [
   ["recent", "最近学过"],
@@ -38,18 +41,26 @@ export function Practice() {
     const learned = Object.entries(progress.cards)
       .sort((a, b) => (b[1].last ?? 0) - (a[1].last ?? 0))
       .map(([id]) => id);
+    // Read-aloud practice always uses the words marked "pronunciation shaky".
     const ids =
-      source === "recent" ? learned : source === "mistakes" ? progress.mistakes : source === "saved" ? progress.bookmarks : atlas.words.filter((w) => w.cefr >= startLevel).slice(0, 400).map((w) => w.id);
+      mode === "shadow"
+        ? progress.pronounce
+        : source === "recent" ? learned : source === "mistakes" ? progress.mistakes : source === "saved" ? progress.bookmarks : atlas.words.filter((w) => w.cefr >= startLevel).slice(0, 400).map((w) => w.id);
     return ids.filter((id) => atlas.byId.has(id));
-  }, [atlas, progress.cards, progress.mistakes, progress.bookmarks, source, startLevel]);
+  }, [atlas, progress.cards, progress.mistakes, progress.bookmarks, progress.pronounce, source, startLevel, mode]);
 
   const start = async () => {
     const ids = shuffle(pool.slice(0, 60), hashSeed(String(Date.now()))).slice(0, 10);
-    const entries = (await prefetch(atlas, ids)).filter((e): e is Entry => !!e && (mode === "word" || e.ex.length > 0));
+    const entries = (await prefetch(atlas, ids)).filter((e): e is Entry => !!e && (mode === "word" || mode === "shadow" || e.ex.length > 0));
     if (entries.length) setRound({ entries, key: Date.now() });
   };
 
-  if (round) return <TypingRound key={round.key} mode={mode} entries={round.entries} onExit={() => setRound(null)} onAgain={start} />;
+  if (round)
+    return mode === "shadow" ? (
+      <ShadowRound key={round.key} entries={round.entries} onExit={() => setRound(null)} onAgain={start} />
+    ) : (
+      <TypingRound key={round.key} mode={mode} entries={round.entries} onExit={() => setRound(null)} onAgain={start} />
+    );
 
   const best = progress.typing.filter((t) => t.mode === mode).reduce((m, t) => Math.max(m, t.wpm), 0);
   return (
@@ -71,15 +82,15 @@ export function Practice() {
               </button>
             ))}
           </div>
-          {mode !== "dictation" && (
+          {(mode === "word" || mode === "sentence") && (
             <label className="field toggle typing-peek">
               <b>显示原文（照着打）</b>
               <input type="checkbox" role="switch" checked={peek} onChange={(e) => store.settings({ typingPeek: e.target.checked })} />
               <span className="switch" aria-hidden="true" />
             </label>
           )}
-          <h3 className="eyebrow">词来自</h3>
-          <div className="segmented segmented-wide">
+          {mode !== "shadow" && <h3 className="eyebrow">词来自</h3>}
+          <div className="segmented segmented-wide" hidden={mode === "shadow"}>
             {SOURCES.map(([k, label]) => (
               <button key={k} className={source === k ? "is-on" : ""} onClick={() => setSource(k)} aria-pressed={source === k}>
                 {label}
@@ -87,7 +98,11 @@ export function Practice() {
             ))}
           </div>
           <p className="muted">
-            {pool.length
+            {mode === "shadow"
+              ? pool.length
+                ? `发音练习里有 ${pool.length} 个词，每轮随机 10 个。复习答题时点「发音不熟」就会加进来。`
+                : "还没有要练发音的词。复习答题时点「发音不熟」就会加进来。"
+              : pool.length
               ? source === "path"
                 ? "从学习路线的前 400 个词里随机抽 10 个。"
                 : `可练 ${pool.length} 个词，每轮随机 10 个。`
@@ -119,7 +134,7 @@ export function Practice() {
   );
 }
 
-function TypingRound({ mode, entries, onExit, onAgain }: { mode: Mode; entries: Entry[]; onExit: () => void; onAgain: () => void }) {
+function TypingRound({ mode, entries, onExit, onAgain }: { mode: TypingMode; entries: Entry[]; onExit: () => void; onAgain: () => void }) {
   const atlas = useAtlas();
   const settings = useStore((s) => s.settings);
   const [i, setI] = useState(0);

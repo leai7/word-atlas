@@ -8,6 +8,7 @@ import { cue } from "../lib/sound";
 import { go } from "../lib/router";
 import { gap, normalize } from "../lib/text";
 import { answer, advance, buildSession, gradeFor, sessionStats, skipKnown } from "../store/session";
+import { ShakyButton } from "../ui/ShakyButton";
 import { Rating } from "../store/srs";
 import { store, useStore, type ActiveSession, type QuizKind, type Step } from "../store/store";
 import { EntryView, Highlight } from "../ui/EntryView";
@@ -249,7 +250,7 @@ function Quiz({ step, session }: { step: Step & { kind: QuizKind }; session: Act
         </ul>
       )}
 
-      {pending && <Feedback entry={entry} refw={ref} correct={pending.correct} onNext={next} />}
+      {pending && <Feedback entry={entry} refw={ref} correct={pending.correct} shaky={!!pending.shaky} onNext={next} />}
     </div>
   );
 }
@@ -336,7 +337,7 @@ function SpellInput({ entry, pending, hints, onHint, onSubmit }: { entry: Entry;
   );
 }
 
-function Feedback({ entry, refw, correct, onNext }: { entry: Entry; refw: WordRef; correct: boolean; onNext: () => void }) {
+function Feedback({ entry, refw, correct, shaky, onNext }: { entry: Entry; refw: WordRef; correct: boolean; shaky: boolean; onNext: () => void }) {
   const atlas = useAtlas();
   const btn = useRef<HTMLButtonElement>(null);
   useEffect(() => btn.current?.focus({ preventScroll: true }), []);
@@ -361,6 +362,7 @@ function Feedback({ entry, refw, correct, onNext }: { entry: Entry; refw: WordRe
               <Highlight text={entry.ex[0].en} word={entry.w} />
             </p>
           )}
+          <ShakyButton wordId={refw.id} shaky={shaky} correct={correct} />
         </div>
         <button ref={btn} className={`btn btn-xl ${correct ? "btn-sage" : "btn-terra"}`} onClick={onNext}>
           继续 <ArrowRight size={20} />
