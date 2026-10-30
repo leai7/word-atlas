@@ -1,5 +1,7 @@
 # 学习模型 / Learning model
 
+> 本 fork 的完整规则（繁体中文、按主题整理）见 [rules.zh-TW.md](rules.zh-TW.md)。
+
 ## 每日旅程
 
 - **复习**：所有到期的词（FSRS 计算的 `due` 已过）。
