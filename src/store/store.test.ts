@@ -34,3 +34,8 @@ test("rejects other versions and unknown settings", () => {
   assert.equal(s.theme, "dark");
   assert.equal(s.retention, 0.9);
 });
+
+test("learner collocations are kept per word, deduplicated, and empty lists dropped", () => {
+  const p = sanitizeProgress({ version: 2, extraCol: { abandon: ["abandon ship｜弃船", "abandon ship｜弃船", 3, " "], empty: [], bad: "x" } }, "x");
+  assert.deepEqual(p.extraCol, { abandon: ["abandon ship｜弃船"] });
+});

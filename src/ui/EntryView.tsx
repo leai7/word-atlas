@@ -1,4 +1,4 @@
-import { Bookmark, BookmarkCheck, CircleCheck, Lightbulb, ListChecks, ListPlus, PenLine, Share2 } from "lucide-react";
+import { Bookmark, BookmarkCheck, CircleCheck, Lightbulb, ListChecks, ListPlus, PenLine, Plus, Share2, X } from "lucide-react";
 import { useState } from "react";
 import type { Entry, WordRef } from "../atlas/types";
 import { useAtlas } from "../atlas/context";
@@ -6,7 +6,7 @@ import { isCustom } from "../atlas/custom";
 import { splitHighlight, splitPair } from "../lib/text";
 import { formatInterval, isMastered } from "../store/srs";
 import { pickWords, skipKnown } from "../store/session";
-import { dequeue, toggleBookmark, unmarkKnown, useStore } from "../store/store";
+import { addCollocation, dequeue, removeCollocation, toggleBookmark, unmarkKnown, useStore } from "../store/store";
 import { Illustration } from "./Illustration";
 import { WordSentences, type Compose } from "./Sentences";
 import { Speak } from "./Speak";
@@ -61,6 +61,28 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
   const queued = useStore((s) => s.progress.queue.includes(entry.id));
   const known = useStore((s) => s.progress.known.includes(entry.id));
   const [compose, setCompose] = useState<Compose>(null);
+  const extra = useStore((s) => s.progress.extraCol[entry.id]);
+  const sentences = useStore((s) => s.progress.sentences);
+  const [adding, setAdding] = useState(false);
+  const [colEn, setColEn] = useState("");
+  const [colZh, setColZh] = useState("");
+  const mine = (extra ?? []).filter((c) => !entry.col.includes(c));
+  const cols = [...entry.col, ...mine];
+  const editable = mode !== "reveal";
+  const saveCol = () => {
+    const en = colEn.trim().replace(/[｜|]/g, " ");
+    if (!en) return;
+    if (cols.some((c) => splitPair(c).en.toLowerCase() === en.toLowerCase())) return window.alert("这个搭配已经在列表里了。");
+    const zh = colZh.trim().replace(/[｜|]/g, " ");
+    addCollocation(entry.id, zh ? `${en}｜${zh}` : en);
+    setColEn("");
+    setColZh("");
+    setAdding(false);
+  };
+  const dropCol = (c: string) => {
+    const used = sentences.some((x) => x.wordId === entry.id && x.chunk === c);
+    if (window.confirm(used ? "删除这个自订搭配？用它写的造句会保留，复习照常。" : "删除这个自订搭配？")) removeCollocation(entry.id, c);
+  };
   const accent = useStore((s) => s.settings.accent);
   const topicIdx = atlas.topics.findIndex((t) => t[0] === entry.topic);
   const topic = atlas.topics[topicIdx];
@@ -156,17 +178,28 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
           </section>
         )}
 
-        {entry.col.length > 0 && (
+        {(cols.length > 0 || editable) && (
           <section className="block">
             <h3 className="eyebrow">常用搭配</h3>
             <ul className="collocations">
-              {entry.col.map((c) => {
+              {cols.map((c) => {
                 const { en, zh } = splitPair(c);
+                const own = mine.includes(c);
                 return (
-                  <li key={c}>
+                  <li key={c} className={own ? "is-own" : ""}>
                     <span lang="en">{en}</span>
                     {zh && <small>{zh}</small>}
-                    {mode !== "reveal" && (
+                    {own && (
+                      <span className="col-own">
+                        自订
+                        {editable && (
+                          <button onClick={() => dropCol(c)} aria-label={`删除搭配 ${en}`} title="删除这个自订搭配">
+                            <X size={12} />
+                          </button>
+                        )}
+                      </span>
+                    )}
+                    {editable && (
                       <button className="col-write" onClick={() => setCompose({ chunk: c })} aria-label={`用 ${en} 造句`} title="用这个搭配造句">
                         <PenLine size={14} /> 造句
                       </button>
@@ -174,7 +207,40 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
                   </li>
                 );
               })}
+              {editable && !adding && (
+                <li className="col-add">
+                  <button onClick={() => setAdding(true)}>
+                    <Plus size={15} /> 新增搭配
+                  </button>
+                </li>
+              )}
             </ul>
+            {adding && (
+              <form
+                className="sentence-form col-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveCol();
+                }}
+              >
+                <label>
+                  <span>英文搭配</span>
+                  <input value={colEn} onChange={(e) => setColEn(e.target.value)} lang="en" autoFocus autoCapitalize="none" spellCheck={false} maxLength={120} placeholder={`例如：${entry.w} the idea of …`} />
+                </label>
+                <label>
+                  <span>中文（选填）</span>
+                  <input value={colZh} onChange={(e) => setColZh(e.target.value)} maxLength={80} />
+                </label>
+                <div className="cf-actions">
+                  <button type="button" className="btn btn-ghost" onClick={() => setAdding(false)}>
+                    取消
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={!colEn.trim()}>
+                    新增
+                  </button>
+                </div>
+              </form>
+            )}
           </section>
         )}
 

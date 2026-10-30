@@ -4591,3 +4591,54 @@ a:hover .mark-needle,
 .chunk-rewrite .sentence-form {
   margin: 0;
 }
+
+/* ---------- learner-added collocations ---------- */
+
+.collocations li.is-own {
+  border-style: dashed;
+}
+.col-own {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 0 4px 0 8px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--ochre-soft);
+  font: 600 11px var(--sans) !important;
+  color: var(--ink-2);
+}
+.col-own button {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+}
+.col-own button:hover {
+  color: var(--terra-ink);
+}
+.collocations li.col-add {
+  padding: 0;
+  background: none;
+  border-style: dashed;
+}
+.col-add button {
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.col-add button:hover {
+  color: var(--terra-ink);
+}
+.col-form {
+  margin-top: 10px;
+}

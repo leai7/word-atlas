@@ -57,6 +57,8 @@ export interface Progress {
   custom: CustomWord[];
   /** Sentences the learner wrote around collocations, each with its own review schedule. */
   sentences: Sentence[];
+  /** Collocations the learner added to a word, "english｜中文", shown after the atlas's own. */
+  extraCol: Record<string, string[]>;
 }
 
 export interface Settings {
@@ -115,6 +117,7 @@ export const emptyProgress = (datasetId: string): Progress => ({
   known: [],
   custom: [],
   sentences: [],
+  extraCol: {},
 });
 
 export const dayKey = (d = new Date()) =>
@@ -169,6 +172,12 @@ export function sanitizeProgress(v: unknown, datasetId: string): Progress {
   if (Array.isArray(v.bookmarks)) out.bookmarks = v.bookmarks.filter((x): x is string => typeof x === "string").slice(0, 20000);
   out.custom = sanitizeCustom(v.custom);
   out.sentences = sanitizeSentences(v.sentences, validCard);
+  if (isObj(v.extraCol))
+    for (const [k, list] of Object.entries(v.extraCol))
+      if (Array.isArray(list)) {
+        const ok = [...new Set(list.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.slice(0, 200)))].slice(0, 30);
+        if (ok.length) out.extraCol[k.slice(0, 80)] = ok;
+      }
   if (Array.isArray(v.known)) out.known = [...new Set(v.known.filter((x): x is string => typeof x === "string"))].slice(0, 20000);
   if (Array.isArray(v.queue)) out.queue = [...new Set(v.queue.filter((x): x is string => typeof x === "string"))].slice(0, 2000);
   if (Array.isArray(v.mistakes)) out.mistakes = v.mistakes.filter((x): x is string => typeof x === "string").slice(0, 300);
@@ -343,6 +352,21 @@ export function saveSentence(s: Sentence) {
     const old = p.sentences.find((x) => x.id === s.id);
     const next = old ? { ...old, text: s.text, blank: s.blank, zh: s.zh } : s;
     return { ...p, sentences: old ? p.sentences.map((x) => (x.id === s.id ? next : x)) : [...p.sentences, next] };
+  });
+}
+
+export function addCollocation(wordId: string, col: string) {
+  store.progress((p) => ({ ...p, extraCol: { ...p.extraCol, [wordId]: [...new Set([...(p.extraCol[wordId] ?? []), col])].slice(0, 30) } }));
+}
+
+/** Sentences already written with it keep their own copy of the chunk, so they stay as they are. */
+export function removeCollocation(wordId: string, col: string) {
+  store.progress((p) => {
+    const rest = (p.extraCol[wordId] ?? []).filter((x) => x !== col);
+    const extraCol = { ...p.extraCol };
+    if (rest.length) extraCol[wordId] = rest;
+    else delete extraCol[wordId];
+    return { ...p, extraCol };
   });
 }
 
