@@ -10,7 +10,8 @@ import { Highlight, Pronounce } from "../ui/EntryView";
 import { Illustration } from "../ui/Illustration";
 
 /**
- * Listen and say it after the recording. The learner judges themselves: "said it right"
+ * Say it first, then listen and compare: the pronunciation stays hidden until asked for.
+ * Then say it after the recording. The learner judges themselves: "said it right"
  * takes the word off the pronunciation list, "practise again" keeps it. Never touches reviews.
  */
 export function ShadowRound({ entries, onExit, onAgain }: { entries: Entry[]; onExit: () => void; onAgain: () => void }) {
@@ -18,13 +19,16 @@ export function ShadowRound({ entries, onExit, onAgain }: { entries: Entry[]; on
   const settings = useStore((s) => s.settings);
   const [i, setI] = useState(0);
   const [cleared, setCleared] = useState(0);
+  /** Try it yourself before hearing it: IPA and audio wait for "listen". */
+  const [heard, setHeard] = useState(false);
   const e = entries[i];
   const ref = e ? atlas.byId.get(e.id) : undefined;
   const say = (rate = 1) => e && play(atlas.audio(e, settings.accent), e.w, settings.accent, rate);
 
-  useEffect(() => {
-    if (e) void say();
-  }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listen = (rate = 1) => {
+    setHeard(true);
+    void say(rate);
+  };
   useEffect(() => () => stopAudio(), []);
 
   const next = (ok: boolean) => {
@@ -34,6 +38,7 @@ export function ShadowRound({ entries, onExit, onAgain }: { entries: Entry[]; on
       setCleared((n) => n + 1);
       if (settings.sfx) void cue("correct");
     }
+    setHeard(false);
     setI(i + 1);
   };
 
@@ -78,15 +83,15 @@ export function ShadowRound({ entries, onExit, onAgain }: { entries: Entry[]; on
         <p className="shadow-word" lang="en">
           {e.w}
         </p>
-        <Pronounce entry={e} refw={ref ?? e} />
+        {heard && <Pronounce entry={e} refw={ref ?? e} />}
         <p>
           <span className="pos">{e.senses[0]?.pos}</span> {e.senses[0]?.zh}
         </p>
         <div className="shadow-tools">
-          <button className="btn btn-ghost" onClick={() => say()}>
-            <Volume2 size={16} /> 再听一遍
+          <button className={`btn ${heard ? "btn-ghost" : "btn-primary"}`} onClick={() => listen()}>
+            <Volume2 size={16} /> {heard ? "再听一遍" : "听发音"}
           </button>
-          <button className="btn btn-ghost" onClick={() => say(0.7)}>
+          <button className="btn btn-ghost" onClick={() => listen(0.7)}>
             <Turtle size={16} /> 慢速
           </button>
           {ex && (
@@ -100,7 +105,7 @@ export function ShadowRound({ entries, onExit, onAgain }: { entries: Entry[]; on
             <Highlight text={ex.en} word={e.w} />
           </p>
         )}
-        <p className="muted">听完跟着念几遍，再自己判断念得对不对。</p>
+        <p className="muted">{heard ? "跟着念几遍，再自己判断念得对不对。" : "先自己念一遍，再点「听发音」对照。"}</p>
         <div className="shadow-actions">
           <button className="btn btn-ghost btn-xl" onClick={() => next(false)}>
             <RotateCcw size={18} /> 再练
