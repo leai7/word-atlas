@@ -13,6 +13,9 @@ import { Speak } from "./Speak";
 import { shareWord } from "./share";
 import { openWord } from "../lib/router";
 
+/** More than six words or sentence punctuation: probably a sentence, not a collocation. */
+const looksLikeSentence = (s: string) => s.trim().split(/\s+/).filter(Boolean).length > 6 || /[.!?;,]\s*\S|[.!?]$/.test(s.trim());
+
 export function Highlight({ text, word }: { text: string; word: string }) {
   const parts = splitHighlight(text, word);
   if (!parts) return <>{text}</>;
@@ -73,6 +76,8 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
     const en = colEn.trim().replace(/[｜|]/g, " ");
     if (!en) return;
     if (cols.some((c) => splitPair(c).en.toLowerCase() === en.toLowerCase())) return window.alert("这个搭配已经在列表里了。");
+    // A whole sentence typed here turns every later review into copying the sentence.
+    if (looksLikeSentence(en) && !window.confirm("这看起来像一个句子。搭配通常是 2–5 个词的词组（例如 behind schedule）；要造句请点搭配卡片下方的「造句」。\n\n仍要把它新增为搭配吗？")) return;
     const zh = colZh.trim().replace(/[｜|]/g, " ");
     addCollocation(entry.id, zh ? `${en}｜${zh}` : en);
     setColEn("");
@@ -223,6 +228,7 @@ export function EntryView({ entry, mode = "detail", eager = true }: { entry: Ent
                   saveCol();
                 }}
               >
+                {looksLikeSentence(colEn) && <p className="cf-warn">这看起来像句子。这里填词组；造句请点搭配卡片下方的「造句」。</p>}
                 <label>
                   <span>英文搭配</span>
                   <input value={colEn} onChange={(e) => setColEn(e.target.value)} lang="en" autoFocus autoCapitalize="none" spellCheck={false} maxLength={120} placeholder={`例如：${entry.w} the idea of …`} />

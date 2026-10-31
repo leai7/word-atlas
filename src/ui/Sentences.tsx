@@ -69,6 +69,9 @@ export function Composer({ entry, compose, onClose }: { entry: Entry; compose: N
         />
       </label>
       {text.trim() && blank.trim() && !text.includes(blank.trim()) && <p className="cf-warn">挖空的部分要和句子里的文字完全一样。</p>}
+      {blank.trim() && wordCount(blank) >= 5 && wordCount(blank) >= wordCount(text) * 0.7 && (
+        <p className="cf-warn">挖空几乎是整句，复习时等于默写整句。搭配通常只挖 2–5 个词。</p>
+      )}
       {blank.trim() && !guessBlank(blank, entry.w, entry.w) && <p className="cf-warn">挖空的部分没有包含 {entry.w}，复习时会直接看到这个词。</p>}
       <label>
         <span>中文翻译（选填，复习时当提示）</span>
@@ -86,6 +89,8 @@ export function Composer({ entry, compose, onClose }: { entry: Entry; compose: N
     </form>
   );
 }
+
+const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
 export function Marked({ s }: { s: Pick<Sentence, "text" | "blank"> }) {
   const at = s.text.indexOf(s.blank);
