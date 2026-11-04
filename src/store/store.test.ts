@@ -39,3 +39,12 @@ test("learner collocations are kept per word, deduplicated, and empty lists drop
   const p = sanitizeProgress({ version: 2, extraCol: { abandon: ["abandon ship｜弃船", "abandon ship｜弃船", 3, " "], empty: [], bad: "x" } }, "x");
   assert.deepEqual(p.extraCol, { abandon: ["abandon ship｜弃船"] });
 });
+
+test("a journey from an earlier study day is closed; one from late last night is kept until 4 a.m.", async () => {
+  const { dropStaleSession, emptyProgress } = await import("./store");
+  const at = (d: number, h: number, m = 0) => new Date(2026, 10, d, h, m).getTime();
+  const withSession = (started: number) => ({ ...emptyProgress("x"), session: { id: "s", started, steps: [], index: 0, graded: {}, newIds: [], reviewIds: [] } });
+  assert.equal(dropStaleSession(withSession(at(3, 22)), at(4, 12)).session, null);
+  assert.ok(dropStaleSession(withSession(at(3, 23, 30)), at(4, 1)).session);
+  assert.ok(dropStaleSession(withSession(at(4, 9)), at(4, 21)).session);
+});

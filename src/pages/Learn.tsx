@@ -10,7 +10,7 @@ import { gap, normalize } from "../lib/text";
 import { answer, advance, buildSession, gradeFor, sessionStats, skipKnown } from "../store/session";
 import { ShakyButton } from "../ui/ShakyButton";
 import { Rating } from "../store/srs";
-import { store, useStore, type ActiveSession, type QuizKind, type Step } from "../store/store";
+import { closeStaleSession, store, useStore, type ActiveSession, type QuizKind, type Step } from "../store/store";
 import { EntryView, Highlight } from "../ui/EntryView";
 import { Illustration } from "../ui/Illustration";
 import { Galaxy } from "../galaxy/Galaxy";
@@ -26,6 +26,7 @@ export function Learn() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    closeStaleSession();
     const { progress, settings } = store.get();
     if (!progress.session) {
       const s = buildSession(atlas, progress, settings);

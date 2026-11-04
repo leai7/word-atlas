@@ -276,7 +276,7 @@ export function flush() {
 
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", flush);
-  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && flush());
+  document.addEventListener("visibilitychange", () => (document.visibilityState === "hidden" ? flush() : closeStaleSession()));
   // Another tab saved: adopt its data instead of keeping a stale copy.
   window.addEventListener("storage", (e) => {
     if (!e.newValue) return;
@@ -300,7 +300,7 @@ export const store = {
   },
   useDataset(datasetId: string) {
     flush();
-    state = { ...state, progress: sanitizeProgress(read(progressKey(datasetId)), datasetId) };
+    state = { ...state, progress: dropStaleSession(sanitizeProgress(read(progressKey(datasetId)), datasetId)) };
     loadedId = datasetId;
     emit();
   },
@@ -318,6 +318,23 @@ export const store = {
 
 export function useStore<T>(select: (s: State) => T): T {
   return useSyncExternalStore(store.subscribe, () => select(state), () => select(state));
+}
+
+/** Journeys belong to one study day, which runs until 4 a.m. so a late-night session isn't cut at midnight. */
+const studyDay = (t: number) => dayKey(new Date(t - 4 * 3600_000));
+
+/**
+ * A journey left unfinished on an earlier day is closed: answers already given are kept in the cards,
+ * and today gets a fresh plan with today's reviews and today's new words.
+ */
+export function dropStaleSession(p: Progress, now = Date.now()): Progress {
+  return p.session && studyDay(p.session.started) !== studyDay(now) ? { ...p, session: null } : p;
+}
+
+/** Call when the app comes back to the foreground: it may have been left open overnight. */
+export function closeStaleSession() {
+  const p = state.progress;
+  if (dropStaleSession(p) !== p) store.progress(dropStaleSession);
 }
 
 export function bumpDay(p: Progress, patch: Partial<DayStat>): Progress {

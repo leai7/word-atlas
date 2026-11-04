@@ -6,7 +6,7 @@ import { cue } from "../lib/sound";
 import { hashSeed } from "../lib/text";
 import { buildSession, dailyLimit, dropNew, examPlan, masteredCount, pickWords, queuedNew, skipKnown, todayPlan, unmetNew } from "../store/session";
 import { isMastered } from "../store/srs";
-import { dayKey, dequeue, store, useStore } from "../store/store";
+import { closeStaleSession, dayKey, dequeue, store, useStore } from "../store/store";
 import { Galaxy } from "../galaxy/Galaxy";
 import { Highlight, Pronounce } from "../ui/EntryView";
 import { Illustration } from "../ui/Illustration";
@@ -37,6 +37,7 @@ export function Today() {
   const atlas = useAtlas();
   const progress = useStore((s) => s.progress);
   const settings = useStore((s) => s.settings);
+  useEffect(() => closeStaleSession(), []);
   const plan = useMemo(() => todayPlan(atlas, progress, settings), [atlas, progress, settings]);
   // Warm the first cards of today's journey so the session opens instantly.
   const firstIds = [...plan.due.slice(0, 4), ...plan.fresh.slice(0, 6)].join(",");
