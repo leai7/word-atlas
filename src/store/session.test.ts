@@ -161,3 +161,21 @@ test("pronunciation shaky: on the practice list, and a right answer is regraded 
   assert.equal(p.session!.graded.a1, Rating.Hard);
   assert.ok(p.cards.a1.due < good);
 });
+
+test("got it from a cue: a right answer is regraded as Hard once, even with pronunciation shaky too", async () => {
+  const { answer, markGuessed, markShakyPronunciation } = await import("./session");
+  const settings = { ...defaultSettings, dailyNew: 0 };
+  const base = { ...emptyProgress("x"), cards: { a1: dueCard } };
+  store.settings(settings);
+  store.progress(() => ({ ...base, session: buildSession(atlas, base, settings) }));
+  const step = store.get().progress.session!.steps[0] as Parameters<typeof answer>[1];
+  answer(atlas, step, true, Rating.Good, "a1");
+  markGuessed("a1");
+  const hard = store.get().progress.cards.a1;
+  markShakyPronunciation("a1");
+  const p = store.get().progress;
+  assert.equal(p.session!.graded.a1, Rating.Hard);
+  assert.deepEqual(p.cards.a1, hard);
+  assert.deepEqual(p.pronounce, ["a1"]);
+  assert.equal(p.session!.pending!.guessed, true);
+});

@@ -4645,6 +4645,12 @@ a:hover .mark-needle,
 
 /* ---------- pronunciation ---------- */
 
+.feedback-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+}
 .feedback-shaky {
   margin-top: 6px;
   font-size: 13px;

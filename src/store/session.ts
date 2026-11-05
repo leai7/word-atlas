@@ -391,24 +391,43 @@ export function answerChunk(step: Step & { kind: "chunk" }, correct: boolean, gr
  * when the answer just given was graded Good or Easy, regrade it as Hard so it comes back sooner.
  */
 export function markShakyPronunciation(wordId: string) {
-  const { settings } = store.get();
   store.progress((p) => {
-    let next: Progress = { ...p, pronounce: [wordId, ...p.pronounce.filter((x) => x !== wordId)].slice(0, 500) };
-    const sess = p.session;
-    const step = sess?.steps[sess.index];
-    const pending = sess?.pending;
-    if (!sess || !step || !pending || pending.shaky) return next;
-    next = { ...next, session: { ...sess, pending: { ...pending, shaky: true } } };
-    const grade = sess.graded[step.id];
-    if (!pending.correct || !pending.before || grade === undefined || grade <= Rating.Hard) return next;
-    const now = Date.now();
-    const { card, sentence } = pending.before;
-    const cards = { ...next.cards };
-    if (step.kind === "chunk") {
-      // A sentence review only touched the word if it had been learned already.
-      if (card) cards[wordId] = review(card, Rating.Hard, now, settings.retention);
-      next = { ...next, sentences: next.sentences.map((x) => (x.id === step.id ? { ...x, card: review(sentence ?? undefined, Rating.Hard, now, settings.retention) } : x)) };
-    } else cards[wordId] = review(card, Rating.Hard, now, settings.retention);
-    return { ...next, cards, session: { ...next.session!, graded: { ...sess.graded, [step.id]: Rating.Hard } } };
+    const next: Progress = { ...p, pronounce: [wordId, ...p.pronounce.filter((x) => x !== wordId)].slice(0, 500) };
+    const pending = next.session?.pending;
+    if (!pending || pending.shaky) return next;
+    return regradeHard({ ...next, session: { ...next.session!, pending: { ...pending, shaky: true } } }, wordId);
   });
+}
+
+/** "Right, but only after the options or a cue jogged my memory": regrade the answer as Hard. */
+export function markGuessed(wordId: string) {
+  store.progress((p) => {
+    const pending = p.session?.pending;
+    if (!pending || pending.guessed || !pending.correct) return p;
+    return regradeHard({ ...p, session: { ...p.session!, pending: { ...pending, guessed: true } } }, wordId);
+  });
+}
+
+/**
+ * Redo the current step's first answer as Hard, from the memory saved before it.
+ * Only a right answer graded Good or Easy changes, so pressing both buttons counts once.
+ */
+function regradeHard(p: Progress, wordId: string): Progress {
+  const { settings } = store.get();
+  const sess = p.session;
+  const step = sess?.steps[sess.index];
+  const pending = sess?.pending;
+  if (!sess || !step || !pending) return p;
+  const grade = sess.graded[step.id];
+  if (!pending.correct || !pending.before || grade === undefined || grade <= Rating.Hard) return p;
+  const now = Date.now();
+  const { card, sentence } = pending.before;
+  const cards = { ...p.cards };
+  let next = p;
+  if (step.kind === "chunk") {
+    // A sentence review only touched the word if it had been learned already.
+    if (card) cards[wordId] = review(card, Rating.Hard, now, settings.retention);
+    next = { ...next, sentences: next.sentences.map((x) => (x.id === step.id ? { ...x, card: review(sentence ?? undefined, Rating.Hard, now, settings.retention) } : x)) };
+  } else cards[wordId] = review(card, Rating.Hard, now, settings.retention);
+  return { ...next, cards, session: { ...sess, graded: { ...sess.graded, [step.id]: Rating.Hard } } };
 }

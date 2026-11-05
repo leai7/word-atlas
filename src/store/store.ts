@@ -27,6 +27,8 @@ export interface ActiveSession {
     before?: { card?: CardState; sentence?: CardState | null };
     /** "Pronunciation shaky" was pressed for this answer. */
     shaky?: boolean;
+    /** "Got it from a cue" was pressed for this answer. */
+    guessed?: boolean;
   };
   finished?: number;
 }

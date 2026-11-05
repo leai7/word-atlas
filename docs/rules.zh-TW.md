@@ -95,6 +95,7 @@
 | 答對，但用了提示 | 困難（Hard） |
 | 答對，但太慢：拼寫或造句超過 20 秒，其他題型超過 9 秒 | 困難（Hard） |
 | 答對，而且是拼寫或造句、6 秒內完成 | 簡單（Easy） |
+| 答對後自己按「靠提示才想起」 | 困難（Hard），見 3.6 |
 | 其他答對 | 良好（Good） |
 
 ### 3.4 答錯
@@ -111,7 +112,13 @@
 - 如果這題答對，而且原本評為「良好」或「簡單」，會**改評為「困難」**，讓下次複習提早；造句題會同時調整造句和單字的時間。
 - 本來就是「困難」或答錯的題目，只加入清單，評分不變。同一題重複按不會重複扣。
 
-### 3.6 「已掌握」的定義
+### 3.6 靠提示才想起
+- 用途：看到選項、圖片或聲音才想起來，但答得很快，系統自動判斷不出來的情況。
+- **只有答對時**才會出現，單字題和造句題都有。
+- 按下去把這題**改評為「困難」**（不是「忘記」），下次複習提早；不會加入發音練習清單。
+- 和「發音不熟」共用同一套改評分邏輯：兩個都按只算一次「困難」，不會重複扣。
+
+### 3.7 「已掌握」的定義
 已經進入複習階段，而且記憶穩定度 ≥ 21 天。
 
 ---
@@ -239,7 +246,7 @@
 | 今日頁（旅程、今天的新詞） | `src/pages/Today.tsx` |
 | 設定頁（考試計畫、自訂單字、備份） | `src/pages/Me.tsx`、`src/pages/CustomWords.tsx` |
 | 打字練習 | `src/pages/Practice.tsx` |
-| 跟讀練習、「發音不熟」按鈕 | `src/pages/ShadowRound.tsx`、`src/ui/ShakyButton.tsx`；改評分在 `src/store/session.ts` 的 `markShakyPronunciation` |
+| 跟讀練習、「發音不熟」「靠提示才想起」按鈕 | `src/pages/ShadowRound.tsx`、`src/ui/ShakyButton.tsx`；改評分在 `src/store/session.ts` 的 `markShakyPronunciation`、`markGuessed`（共用 `regradeHard`） |
 | 自動測試 | `src/**/*.test.ts`，用 `npm test` 執行 |
 | 自動部署設定 | `.github/workflows/pages.yml` |
 
